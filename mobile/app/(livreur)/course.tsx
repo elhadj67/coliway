@@ -30,19 +30,7 @@ import {
   Position,
 } from '@/services/location';
 import { ORDER_STATUS, OrderStatus } from '@/constants/config';
-
-const COLORS = {
-  primary: '#1B3A5C',
-  secondary: '#2E86DE',
-  accent: '#F39C12',
-  success: '#27AE60',
-  danger: '#E74C3C',
-  background: '#F5F7FA',
-  white: '#FFFFFF',
-  text: '#2C3E50',
-  textLight: '#7F8C8D',
-  border: '#E0E6ED',
-};
+import { Colors } from '@/constants/theme';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -229,7 +217,7 @@ export default function CourseScreen() {
   const handleContactClient = () => {
     if (!orderId) return;
     router.push({
-      pathname: '/(livreur)/chat' as any,
+      pathname: '/(livreur)/chat',
       params: { orderId },
     });
   };
@@ -247,7 +235,7 @@ export default function CourseScreen() {
         },
         title: 'Point de retrait',
         description: order.adresseEnlevement.adresse,
-        color: COLORS.success,
+        color: Colors.success,
       });
     }
 
@@ -259,7 +247,7 @@ export default function CourseScreen() {
       },
       title: 'Point de livraison',
       description: order.adresseLivraison.adresse,
-      color: COLORS.danger,
+      color: Colors.danger,
     });
   }
 
@@ -297,7 +285,7 @@ export default function CourseScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Chargement de la course...</Text>
       </SafeAreaView>
     );
@@ -306,7 +294,7 @@ export default function CourseScreen() {
   if (!order) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <Ionicons name="alert-circle-outline" size={48} color={COLORS.danger} />
+        <Ionicons name="alert-circle-outline" size={48} color={Colors.danger} />
         <Text style={styles.errorText}>Commande introuvable</Text>
         <Button
           title="Retour"
@@ -342,7 +330,7 @@ export default function CourseScreen() {
           loading={updatingStatus}
           icon="checkmark-circle-outline"
           variant="primary"
-          style={[styles.actionButton, { backgroundColor: COLORS.success }]}
+          style={[styles.actionButton, { backgroundColor: Colors.success }]}
         />
       );
     }
@@ -368,7 +356,7 @@ export default function CourseScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+          <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </TouchableOpacity>
       </SafeAreaView>
 
@@ -396,7 +384,7 @@ export default function CourseScreen() {
               <Ionicons
                 name={isPickedUp ? 'flag' : 'location'}
                 size={20}
-                color={COLORS.white}
+                color={Colors.white}
               />
             </View>
             <View style={styles.stepTextContainer}>
@@ -408,7 +396,7 @@ export default function CourseScreen() {
           {/* Address */}
           <View style={styles.addressCard}>
             <View style={styles.addressCardHeader}>
-              <Ionicons name="location-outline" size={18} color={COLORS.secondary} />
+              <Ionicons name="location-outline" size={18} color={Colors.secondary} />
               <Text style={styles.addressCardLabel}>
                 {isPickedUp ? 'Adresse de livraison' : 'Adresse de retrait'}
               </Text>
@@ -420,7 +408,7 @@ export default function CourseScreen() {
                 onPress={handleCopyAddress}
                 activeOpacity={0.7}
               >
-                <Ionicons name="copy-outline" size={16} color={COLORS.secondary} />
+                <Ionicons name="copy-outline" size={16} color={Colors.secondary} />
                 <Text style={styles.addressActionText}>Copier</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -428,7 +416,7 @@ export default function CourseScreen() {
                 onPress={handleOpenMaps}
                 activeOpacity={0.7}
               >
-                <Ionicons name="navigate-outline" size={16} color={COLORS.secondary} />
+                <Ionicons name="navigate-outline" size={16} color={Colors.secondary} />
                 <Text style={styles.addressActionText}>Ouvrir dans Maps</Text>
               </TouchableOpacity>
             </View>
@@ -443,7 +431,7 @@ export default function CourseScreen() {
               onPress={handleContactClient}
               activeOpacity={0.7}
             >
-              <Ionicons name="chatbubble-outline" size={18} color={COLORS.secondary} />
+              <Ionicons name="chatbubble-outline" size={18} color={Colors.secondary} />
               <Text style={styles.contactButtonText}>Contacter le client</Text>
             </TouchableOpacity>
           </View>
@@ -456,24 +444,24 @@ export default function CourseScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: COLORS.textLight,
+    color: Colors.textLight,
   },
   errorText: {
     marginTop: 12,
     fontSize: 17,
     fontWeight: '600',
-    color: COLORS.text,
+    color: Colors.text,
   },
 
   // Map
@@ -493,7 +481,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -506,7 +494,7 @@ const styles = StyleSheet.create({
   // Bottom Sheet
   bottomSheet: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     marginTop: -24,
@@ -520,7 +508,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: COLORS.border,
+    backgroundColor: Colors.border,
     alignSelf: 'center',
     marginTop: 12,
     marginBottom: 8,
@@ -540,14 +528,14 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.text,
+    color: Colors.text,
   },
 
   // Step
   stepContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.primary + '08',
+    backgroundColor: Colors.primary + '08',
     borderRadius: 12,
     padding: 14,
     marginBottom: 16,
@@ -556,7 +544,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: Colors.secondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -566,7 +554,7 @@ const styles = StyleSheet.create({
   },
   stepLabel: {
     fontSize: 11,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -574,13 +562,13 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.text,
+    color: Colors.text,
     marginTop: 2,
   },
 
   // Address Card
   addressCard: {
-    backgroundColor: COLORS.background,
+    backgroundColor: Colors.background,
     borderRadius: 12,
     padding: 14,
     marginBottom: 16,
@@ -594,11 +582,11 @@ const styles = StyleSheet.create({
   addressCardLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.secondary,
+    color: Colors.secondary,
   },
   addressCardText: {
     fontSize: 15,
-    color: COLORS.text,
+    color: Colors.text,
     lineHeight: 22,
     marginBottom: 10,
   },
@@ -613,12 +601,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
   },
   addressActionText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.secondary,
+    color: Colors.secondary,
   },
 
   // Actions
@@ -635,12 +623,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.secondary,
+    borderColor: Colors.secondary,
     gap: 8,
   },
   contactButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.secondary,
+    color: Colors.secondary,
   },
 });

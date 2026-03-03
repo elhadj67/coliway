@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Map from '@/components/Map';
 import Button from '@/components/Button';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,19 +28,7 @@ import {
 } from '@/services/location';
 import { updateProfile } from '@/services/auth';
 import { COLIS_TYPES, DEFAULT_MAP_REGION } from '@/constants/config';
-
-const COLORS = {
-  primary: '#1B3A5C',
-  secondary: '#2E86DE',
-  accent: '#F39C12',
-  success: '#27AE60',
-  danger: '#E74C3C',
-  background: '#F5F7FA',
-  white: '#FFFFFF',
-  text: '#2C3E50',
-  textLight: '#7F8C8D',
-  border: '#E0E6ED',
-};
+import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 
 function getColisLabel(typeId: string): string {
   const found = COLIS_TYPES.find((c) => c.id === typeId);
@@ -80,7 +67,7 @@ const OrderCard: React.FC<OrderCardProps> = ({
           <Ionicons
             name={getColisIcon(order.typeColis)}
             size={20}
-            color={COLORS.secondary}
+            color={Colors.secondary}
           />
           <Text style={styles.colisTypeText}>
             {getColisLabel(order.typeColis)}
@@ -93,7 +80,7 @@ const OrderCard: React.FC<OrderCardProps> = ({
 
       <View style={styles.addressRow}>
         <View style={styles.addressDot}>
-          <Ionicons name="ellipse" size={10} color={COLORS.success} />
+          <Ionicons name="ellipse" size={10} color={Colors.success} />
         </View>
         <View style={styles.addressTextContainer}>
           <Text style={styles.addressLabel}>Retrait</Text>
@@ -107,7 +94,7 @@ const OrderCard: React.FC<OrderCardProps> = ({
 
       <View style={styles.addressRow}>
         <View style={styles.addressDot}>
-          <Ionicons name="ellipse" size={10} color={COLORS.danger} />
+          <Ionicons name="ellipse" size={10} color={Colors.danger} />
         </View>
         <View style={styles.addressTextContainer}>
           <Text style={styles.addressLabel}>Livraison</Text>
@@ -120,7 +107,7 @@ const OrderCard: React.FC<OrderCardProps> = ({
       <View style={styles.orderCardFooter}>
         {distance !== null && (
           <View style={styles.distanceBadge}>
-            <Ionicons name="navigate-outline" size={14} color={COLORS.textLight} />
+            <Ionicons name="navigate-outline" size={14} color={Colors.textLight} />
             <Text style={styles.distanceText}>{distance.toFixed(1)} km</Text>
           </View>
         )}
@@ -131,10 +118,10 @@ const OrderCard: React.FC<OrderCardProps> = ({
           activeOpacity={0.7}
         >
           {accepting ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
+            <ActivityIndicator size="small" color={Colors.white} />
           ) : (
             <>
-              <Ionicons name="checkmark-circle" size={18} color={COLORS.white} />
+              <Ionicons name="checkmark-circle" size={18} color={Colors.white} />
               <Text style={styles.acceptButtonText}>Accepter</Text>
             </>
           )}
@@ -170,11 +157,17 @@ export default function LivreurDashboard() {
 
   // Subscribe to available orders
   useEffect(() => {
-    const unsubscribe = getAvailableOrders((orders) => {
-      setAvailableOrders(orders);
-      setLoading(false);
-      setRefreshing(false);
-    });
+    const unsubscribe = getAvailableOrders(
+      (orders) => {
+        setAvailableOrders(orders);
+        setLoading(false);
+        setRefreshing(false);
+      },
+      (error) => {
+        console.error('Error loading orders:', error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, []);
@@ -255,7 +248,7 @@ export default function LivreurDashboard() {
     },
     title: getColisLabel(order.typeColis),
     description: `${(order.prixEstime || 0).toFixed(2)} EUR`,
-    color: COLORS.accent,
+    color: Colors.accent,
   }));
 
   const renderHeader = () => (
@@ -275,13 +268,13 @@ export default function LivreurDashboard() {
             <View
               style={[
                 styles.statusIndicator,
-                { backgroundColor: disponible ? COLORS.success : COLORS.textLight },
+                { backgroundColor: disponible ? Colors.success : Colors.textLight },
               ]}
             />
             <Text
               style={[
                 styles.toggleLabel,
-                { color: disponible ? COLORS.success : COLORS.textLight },
+                { color: disponible ? Colors.success : Colors.textLight },
               ]}
             >
               {disponible ? 'Disponible' : 'Indisponible'}
@@ -289,8 +282,8 @@ export default function LivreurDashboard() {
             <Switch
               value={disponible}
               onValueChange={handleToggleDisponible}
-              trackColor={{ false: COLORS.border, true: '#A3D9A5' }}
-              thumbColor={disponible ? COLORS.success : COLORS.textLight}
+              trackColor={{ false: Colors.border, true: '#A3D9A5' }}
+              thumbColor={disponible ? Colors.success : Colors.textLight}
             />
           </View>
         </View>
@@ -299,17 +292,17 @@ export default function LivreurDashboard() {
       {/* Stats Row */}
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
-          <Ionicons name="bicycle-outline" size={22} color={COLORS.secondary} />
+          <Ionicons name="bicycle-outline" size={22} color={Colors.secondary} />
           <Text style={styles.statValue}>{todayCourses}</Text>
           <Text style={styles.statLabel}>Courses aujourd'hui</Text>
         </View>
         <View style={styles.statCard}>
-          <Ionicons name="cash-outline" size={22} color={COLORS.success} />
+          <Ionicons name="cash-outline" size={22} color={Colors.success} />
           <Text style={styles.statValue}>{todayGains.toFixed(2)} EUR</Text>
           <Text style={styles.statLabel}>Gains aujourd'hui</Text>
         </View>
         <View style={styles.statCard}>
-          <Ionicons name="star" size={22} color={COLORS.accent} />
+          <Ionicons name="star" size={22} color={Colors.accent} />
           <Text style={styles.statValue}>{averageRating.toFixed(1)}</Text>
           <Text style={styles.statLabel}>Note moyenne</Text>
         </View>
@@ -336,7 +329,7 @@ export default function LivreurDashboard() {
 
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="search-outline" size={48} color={COLORS.textLight} />
+      <Ionicons name="search-outline" size={48} color={Colors.textLight} />
       <Text style={styles.emptyTitle}>Aucune commande disponible</Text>
       <Text style={styles.emptySubtitle}>
         De nouvelles commandes apparaitront ici en temps reel
@@ -346,15 +339,15 @@ export default function LivreurDashboard() {
 
   if (loading && availableOrders.length === 0) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Chargement...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <FlatList
         data={availableOrders}
         keyExtractor={(item) => item.id}
@@ -373,42 +366,42 @@ export default function LivreurDashboard() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            colors={[COLORS.primary]}
-            tintColor={COLORS.primary}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
           />
         }
         showsVerticalScrollIndicator={false}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.textLight,
+    marginTop: Spacing.md,
+    fontSize: Typography.sizes.base,
+    color: Colors.textLight,
   },
   listContent: {
-    paddingBottom: 24,
+    paddingBottom: Spacing.xl,
   },
 
   // Header Card
   headerCard: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    paddingTop: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    paddingTop: Spacing.sm,
   },
   greetingRow: {
     flexDirection: 'row',
@@ -417,13 +410,13 @@ const styles = StyleSheet.create({
   },
   greetingText: {
     fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.white,
+    fontWeight: Typography.weights.bold,
+    color: Colors.white,
   },
   greetingSubtext: {
-    fontSize: 14,
+    fontSize: Typography.sizes.md,
     color: 'rgba(255,255,255,0.7)',
-    marginTop: 4,
+    marginTop: Spacing.xs,
   },
   toggleContainer: {
     flexDirection: 'row',
@@ -433,27 +426,27 @@ const styles = StyleSheet.create({
   statusIndicator: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: BorderRadius.sm,
   },
   toggleLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginRight: 4,
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
+    marginRight: Spacing.xs,
   },
 
   // Stats Row
   statsRow: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
+    paddingHorizontal: Spacing.base,
     marginTop: -1,
-    paddingTop: 16,
+    paddingTop: Spacing.base,
     gap: 10,
   },
   statCard: {
     flex: 1,
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -462,33 +455,33 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   statValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
     marginTop: 6,
   },
   statLabel: {
-    fontSize: 10,
-    color: COLORS.textLight,
+    fontSize: Typography.sizes.xs,
+    color: Colors.textLight,
     marginTop: 2,
     textAlign: 'center',
   },
 
   // Map Section
   mapSection: {
-    paddingHorizontal: 16,
-    marginTop: 20,
+    paddingHorizontal: Spacing.base,
+    marginTop: Spacing.lg,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 12,
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginBottom: Spacing.md,
   },
   map: {
     width: '100%',
     height: 220,
-    borderRadius: 12,
+    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
   },
 
@@ -497,22 +490,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    marginTop: 24,
-    marginBottom: 8,
+    paddingHorizontal: Spacing.base,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.sm,
   },
   ordersCount: {
-    fontSize: 14,
-    color: COLORS.textLight,
+    fontSize: Typography.sizes.md,
+    color: Colors.textLight,
   },
 
   // Order Card
   orderCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.md,
+    padding: Spacing.base,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -530,26 +523,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#EBF5FB',
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.md,
     gap: 6,
   },
   colisTypeText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.secondary,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.secondary,
   },
   orderPrice: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.primary,
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: Colors.primary,
   },
 
   // Address
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: Spacing.xs,
   },
   addressDot: {
     width: 24,
@@ -558,23 +551,23 @@ const styles = StyleSheet.create({
   addressConnector: {
     width: 1,
     height: 14,
-    backgroundColor: COLORS.border,
-    marginLeft: 12,
+    backgroundColor: Colors.border,
+    marginLeft: Spacing.md,
   },
   addressTextContainer: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: Spacing.sm,
   },
   addressLabel: {
     fontSize: 11,
-    color: COLORS.textLight,
-    fontWeight: '500',
+    color: Colors.textLight,
+    fontWeight: Typography.weights.medium,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   addressText: {
-    fontSize: 14,
-    color: COLORS.text,
+    fontSize: Typography.sizes.md,
+    color: Colors.text,
     marginTop: 1,
   },
 
@@ -584,36 +577,36 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 14,
-    paddingTop: 12,
+    paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: Colors.border,
   },
   distanceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Spacing.xs,
   },
   distanceText: {
     fontSize: 13,
-    color: COLORS.textLight,
-    fontWeight: '500',
+    color: Colors.textLight,
+    fontWeight: Typography.weights.medium,
   },
   acceptButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.success,
-    paddingHorizontal: 16,
+    backgroundColor: Colors.success,
+    paddingHorizontal: Spacing.base,
     paddingVertical: 10,
     borderRadius: 10,
     gap: 6,
   },
   acceptButtonDisabled: {
-    backgroundColor: COLORS.border,
+    backgroundColor: Colors.border,
   },
   acceptButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.white,
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.bold,
+    color: Colors.white,
   },
 
   // Empty State
@@ -621,19 +614,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 48,
-    paddingHorizontal: 32,
+    paddingHorizontal: Spacing.xxl,
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginTop: 16,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
+    marginTop: Spacing.base,
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: COLORS.textLight,
+    fontSize: Typography.sizes.md,
+    color: Colors.textLight,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: Spacing.sm,
     lineHeight: 20,
   },
 });

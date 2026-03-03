@@ -24,7 +24,7 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
-  signInWithGoogle: (idToken: string) => Promise<void>;
+  signInWithGoogle: (idToken: string, role?: import('@/constants/config').UserRole) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -95,8 +95,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   // Sign in with Google
-  const signInWithGoogle = async (idToken: string): Promise<void> => {
-    const credential = await authSignInWithGoogle(idToken);
+  const signInWithGoogle = async (idToken: string, role?: import('@/constants/config').UserRole): Promise<void> => {
+    const credential = await authSignInWithGoogle(idToken, role);
     await fetchProfile(credential.user.uid);
   };
 

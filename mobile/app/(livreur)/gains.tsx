@@ -10,24 +10,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { getLivreurOrders, Order } from '@/services/orders';
 import { calculateDistance } from '@/services/location';
+import { Colors } from '@/constants/theme';
 import { Timestamp } from 'firebase/firestore';
-
-const COLORS = {
-  primary: '#1B3A5C',
-  secondary: '#2E86DE',
-  accent: '#F39C12',
-  success: '#27AE60',
-  danger: '#E74C3C',
-  background: '#F5F7FA',
-  white: '#FFFFFF',
-  text: '#2C3E50',
-  textLight: '#7F8C8D',
-  border: '#E0E6ED',
-};
 
 const COMMISSION_RATE = 0.20;
 
@@ -155,6 +144,7 @@ function getDailyEarnings(orders: Order[]): DayEarnings[] {
 }
 
 export default function GainsScreen() {
+  const router = useRouter();
   const { user } = useAuth();
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>('today');
@@ -196,7 +186,7 @@ export default function GainsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Chargement des gains...</Text>
       </SafeAreaView>
     );
@@ -205,6 +195,13 @@ export default function GainsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.screenHeader}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+        </TouchableOpacity>
         <Text style={styles.screenTitle}>Mes gains</Text>
       </View>
 
@@ -254,17 +251,17 @@ export default function GainsScreen() {
         {/* Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Ionicons name="bicycle-outline" size={20} color={COLORS.secondary} />
+            <Ionicons name="bicycle-outline" size={20} color={Colors.secondary} />
             <Text style={styles.statValue}>{totalCourses}</Text>
             <Text style={styles.statLabel}>Courses</Text>
           </View>
           <View style={styles.statCard}>
-            <Ionicons name="trending-up-outline" size={20} color={COLORS.accent} />
+            <Ionicons name="trending-up-outline" size={20} color={Colors.accent} />
             <Text style={styles.statValue}>{averageEarning.toFixed(2)} EUR</Text>
             <Text style={styles.statLabel}>Gain moyen</Text>
           </View>
           <View style={styles.statCard}>
-            <Ionicons name="speedometer-outline" size={20} color={COLORS.primary} />
+            <Ionicons name="speedometer-outline" size={20} color={Colors.primary} />
             <Text style={styles.statValue}>{totalDistance.toFixed(1)} km</Text>
             <Text style={styles.statLabel}>Distance</Text>
           </View>
@@ -290,8 +287,8 @@ export default function GainsScreen() {
                             height: Math.max(barHeight, 4),
                             backgroundColor:
                               index === dailyEarnings.length - 1
-                                ? COLORS.secondary
-                                : COLORS.secondary + '60',
+                                ? Colors.secondary
+                                : Colors.secondary + '60',
                           },
                         ]}
                       />
@@ -312,7 +309,7 @@ export default function GainsScreen() {
               <Ionicons
                 name="receipt-outline"
                 size={36}
-                color={COLORS.textLight}
+                color={Colors.textLight}
               />
               <Text style={styles.emptyText}>
                 Aucune transaction pour cette periode
@@ -329,7 +326,7 @@ export default function GainsScreen() {
                       <Ionicons
                         name="checkmark-circle"
                         size={18}
-                        color={COLORS.success}
+                        color={Colors.success}
                       />
                     </View>
                     <View>
@@ -361,7 +358,7 @@ export default function GainsScreen() {
           onPress={handleRequestPayout}
           activeOpacity={0.7}
         >
-          <Ionicons name="wallet-outline" size={20} color={COLORS.white} />
+          <Ionicons name="wallet-outline" size={20} color={Colors.white} />
           <Text style={styles.payoutButtonText}>Demander un versement</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -372,18 +369,18 @@ export default function GainsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: COLORS.textLight,
+    color: Colors.textLight,
   },
   scrollContent: {
     paddingBottom: 32,
@@ -391,16 +388,25 @@ const styles = StyleSheet.create({
 
   // Screen Header
   screenHeader: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: COLORS.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: Colors.border,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
   },
   screenTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: COLORS.text,
+    color: Colors.text,
   },
 
   // Period Selector
@@ -413,32 +419,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: Colors.border,
     marginRight: 8,
   },
   periodTabActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   periodTabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textLight,
+    color: Colors.textLight,
   },
   periodTabTextActive: {
-    color: COLORS.white,
+    color: Colors.white,
   },
 
   // Earnings Card
   earningsCard: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: Colors.primary,
     marginHorizontal: 16,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
-    shadowColor: COLORS.primary,
+    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -453,7 +459,7 @@ const styles = StyleSheet.create({
   earningsAmount: {
     fontSize: 40,
     fontWeight: '700',
-    color: COLORS.white,
+    color: Colors.white,
   },
   commissionInfo: {
     fontSize: 12,
@@ -470,7 +476,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
     borderRadius: 12,
     padding: 12,
     alignItems: 'center',
@@ -483,18 +489,18 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.text,
+    color: Colors.text,
     marginTop: 6,
   },
   statLabel: {
     fontSize: 11,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     marginTop: 2,
   },
 
   // Chart
   chartCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
     marginHorizontal: 16,
     marginTop: 16,
     borderRadius: 12,
@@ -508,7 +514,7 @@ const styles = StyleSheet.create({
   chartTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.text,
+    color: Colors.text,
     marginBottom: 16,
   },
   chartContainer: {
@@ -523,7 +529,7 @@ const styles = StyleSheet.create({
   },
   barAmount: {
     fontSize: 10,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     fontWeight: '500',
     marginBottom: 4,
   },
@@ -541,7 +547,7 @@ const styles = StyleSheet.create({
   },
   barLabel: {
     fontSize: 9,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     marginTop: 6,
     textAlign: 'center',
   },
@@ -554,7 +560,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.text,
+    color: Colors.text,
     marginBottom: 12,
   },
   emptyTransactions: {
@@ -563,14 +569,14 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     marginTop: 8,
   },
   transactionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
     borderRadius: 10,
     padding: 14,
     marginBottom: 8,
@@ -584,7 +590,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.success + '15',
+    backgroundColor: Colors.success + '15',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -592,11 +598,11 @@ const styles = StyleSheet.create({
   transactionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
+    color: Colors.text,
   },
   transactionDate: {
     fontSize: 12,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     marginTop: 2,
   },
   transactionRight: {
@@ -605,11 +611,11 @@ const styles = StyleSheet.create({
   transactionAmount: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.success,
+    color: Colors.success,
   },
   transactionCommission: {
     fontSize: 11,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     marginTop: 2,
   },
 
@@ -618,13 +624,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.accent,
+    backgroundColor: Colors.accent,
     marginHorizontal: 16,
     marginTop: 24,
     paddingVertical: 16,
     borderRadius: 12,
     gap: 8,
-    shadowColor: COLORS.accent,
+    shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -633,6 +639,6 @@ const styles = StyleSheet.create({
   payoutButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.white,
+    color: Colors.white,
   },
 });

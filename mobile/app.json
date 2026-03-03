@@ -49,6 +49,7 @@
       "expo-location",
       "expo-notifications",
       "expo-image-picker",
+      "expo-document-picker",
       "expo-asset",
       "expo-font",
       "@react-native-google-signin/google-signin"

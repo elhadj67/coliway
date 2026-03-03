@@ -1,19 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-
-const COLORS = {
-  primary: '#1B3A5C',
-  secondary: '#2E86DE',
-  accent: '#F39C12',
-  success: '#27AE60',
-  danger: '#E74C3C',
-  warning: '#F39C12',
-  background: '#F5F7FA',
-  white: '#FFFFFF',
-  text: '#2C3E50',
-  textLight: '#7F8C8D',
-  border: '#E0E6ED',
-};
+import { Colors } from '@/constants/theme';
 
 interface Message {
   text: string;
@@ -86,14 +73,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   bubbleOwn: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: Colors.primary,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 4,
   },
   bubbleOther: {
-    backgroundColor: COLORS.background,
+    backgroundColor: Colors.background,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     borderBottomLeftRadius: 4,
@@ -104,14 +91,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   messageTextOwn: {
-    color: COLORS.white,
+    color: Colors.white,
   },
   messageTextOther: {
-    color: COLORS.text,
+    color: Colors.text,
   },
   timestamp: {
     fontSize: 11,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     marginTop: 4,
   },
   timestampOwn: {

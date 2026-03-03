@@ -10,25 +10,19 @@ import {
   ActivityIndicator,
   Linking,
   Image,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/services/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { signOut, updateProfile } from '@/services/auth';
-
-const COLORS = {
-  primary: '#1B3A5C',
-  secondary: '#2E86DE',
-  accent: '#F39C12',
-  success: '#27AE60',
-  danger: '#E74C3C',
-  background: '#F5F7FA',
-  white: '#FFFFFF',
-  text: '#2C3E50',
-  textLight: '#7F8C8D',
-  border: '#E0E6ED',
-};
+import { Colors } from '@/constants/theme';
 
 type AccountStatus = 'en_attente' | 'approuve' | 'refuse';
 
@@ -44,14 +38,14 @@ function getAccountStatusConfig(status: AccountStatus) {
     case 'approuve':
       return {
         label: 'Approuve',
-        color: COLORS.success,
+        color: Colors.success,
         icon: 'checkmark-circle' as keyof typeof Ionicons.glyphMap,
         description: 'Votre compte est actif. Vous pouvez accepter des courses.',
       };
     case 'en_attente':
       return {
         label: 'En attente de validation',
-        color: COLORS.accent,
+        color: Colors.accent,
         icon: 'time' as keyof typeof Ionicons.glyphMap,
         description:
           'Votre compte est en cours de verification. Cela peut prendre 24 a 48h.',
@@ -59,7 +53,7 @@ function getAccountStatusConfig(status: AccountStatus) {
     case 'refuse':
       return {
         label: 'Refuse',
-        color: COLORS.danger,
+        color: Colors.danger,
         icon: 'close-circle' as keyof typeof Ionicons.glyphMap,
         description:
           'Votre compte a ete refuse. Veuillez verifier vos documents et reessayer.',
@@ -67,7 +61,7 @@ function getAccountStatusConfig(status: AccountStatus) {
     default:
       return {
         label: 'Inconnu',
-        color: COLORS.textLight,
+        color: Colors.textLight,
         icon: 'help-circle' as keyof typeof Ionicons.glyphMap,
         description: '',
       };
@@ -77,13 +71,13 @@ function getAccountStatusConfig(status: AccountStatus) {
 function getDocStatusConfig(status: string) {
   switch (status) {
     case 'valide':
-      return { label: 'Valide', color: COLORS.success, icon: 'checkmark-circle' as keyof typeof Ionicons.glyphMap };
+      return { label: 'Valide', color: Colors.success, icon: 'checkmark-circle' as keyof typeof Ionicons.glyphMap };
     case 'en_attente':
-      return { label: 'En attente', color: COLORS.accent, icon: 'time' as keyof typeof Ionicons.glyphMap };
+      return { label: 'En attente', color: Colors.accent, icon: 'time' as keyof typeof Ionicons.glyphMap };
     case 'manquant':
-      return { label: 'Manquant', color: COLORS.danger, icon: 'alert-circle' as keyof typeof Ionicons.glyphMap };
+      return { label: 'Manquant', color: Colors.danger, icon: 'alert-circle' as keyof typeof Ionicons.glyphMap };
     default:
-      return { label: 'Inconnu', color: COLORS.textLight, icon: 'help-circle' as keyof typeof Ionicons.glyphMap };
+      return { label: 'Inconnu', color: Colors.textLight, icon: 'help-circle' as keyof typeof Ionicons.glyphMap };
   }
 }
 
@@ -95,15 +89,15 @@ function renderStars(rating: number): React.ReactNode[] {
   for (let i = 0; i < 5; i++) {
     if (i < fullStars) {
       stars.push(
-        <Ionicons key={i} name="star" size={16} color={COLORS.accent} />
+        <Ionicons key={i} name="star" size={16} color={Colors.accent} />
       );
     } else if (i === fullStars && halfStar) {
       stars.push(
-        <Ionicons key={i} name="star-half" size={16} color={COLORS.accent} />
+        <Ionicons key={i} name="star-half" size={16} color={Colors.accent} />
       );
     } else {
       stars.push(
-        <Ionicons key={i} name="star-outline" size={16} color={COLORS.border} />
+        <Ionicons key={i} name="star-outline" size={16} color={Colors.border} />
       );
     }
   }
@@ -116,6 +110,12 @@ export default function ProfilScreen() {
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalField, setModalField] = useState<'immatriculation' | 'siret' | 'vehicule'>('immatriculation');
+  const [modalValue, setModalValue] = useState('');
+  const [savingField, setSavingField] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
 
   const accountStatus: AccountStatus =
     ((profile as any)?.accountStatus as AccountStatus) || 'en_attente';
@@ -146,15 +146,104 @@ export default function ProfilScreen() {
       id: 'siret',
       label: 'SIRET',
       icon: 'document-text-outline',
-      status: 'en_attente',
+      status: profile?.siret ? 'valide' : 'manquant',
     },
     {
       id: 'assurance',
       label: 'Assurance',
       icon: 'shield-checkmark-outline',
-      status: 'manquant',
+      status: profile?.assurance ? 'valide' : 'manquant',
     },
   ];
+
+  const handleChangePhoto = () => {
+    Alert.alert(
+      'Photo de profil',
+      'Choisissez une option',
+      [
+        {
+          text: 'Prendre une photo',
+          onPress: () => pickImage('camera'),
+        },
+        {
+          text: 'Choisir depuis la galerie',
+          onPress: () => pickImage('gallery'),
+        },
+        { text: 'Annuler', style: 'cancel' },
+      ]
+    );
+  };
+
+  const pickImage = async (source: 'camera' | 'gallery') => {
+    try {
+      let result: ImagePicker.ImagePickerResult;
+
+      if (source === 'camera') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permission requise', 'Autorisez l\'accès à la caméra pour prendre une photo.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.7,
+        });
+      } else {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permission requise', 'Autorisez l\'accès à la galerie pour choisir une photo.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.7,
+        });
+      }
+
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      await uploadPhoto(result.assets[0].uri);
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image.');
+    }
+  };
+
+  const uploadPhoto = async (uri: string) => {
+    if (!user) return;
+
+    setUploadingPhoto(true);
+    try {
+      const blob: Blob = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = () => resolve(xhr.response);
+        xhr.onerror = () => reject(new TypeError('Network request failed'));
+        xhr.responseType = 'blob';
+        xhr.open('GET', uri, true);
+        xhr.send(null);
+      });
+
+      const storageRef = ref(storage, `profiles/${user.uid}/photo.jpg`);
+      await uploadBytes(storageRef, blob);
+
+      const downloadURL = await getDownloadURL(storageRef);
+
+      await updateProfile(user.uid, { photoURL: downloadURL });
+
+      await refreshProfile();
+
+      Alert.alert('Succès', 'Photo de profil mise à jour !');
+    } catch (error) {
+      console.error('Upload error:', error);
+      Alert.alert('Erreur', 'Impossible de mettre à jour la photo de profil.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const handleToggleNotifications = async (value: boolean) => {
     setNotificationsEnabled(value);
@@ -169,12 +258,147 @@ export default function ProfilScreen() {
     }
   };
 
+  const handleEditField = (field: 'immatriculation' | 'siret' | 'vehicule') => {
+    const currentValue = profile?.[field] || '';
+    setModalField(field);
+    setModalValue(currentValue);
+    setModalVisible(true);
+  };
+
+  const handleSaveField = async () => {
+    if (!user) return;
+
+    const value = modalValue.trim();
+
+    if (modalField === 'siret') {
+      if (!/^\d{14}$/.test(value)) {
+        Alert.alert('SIRET invalide', 'Le numero SIRET doit comporter exactement 14 chiffres.');
+        return;
+      }
+    }
+
+    setSavingField(true);
+    try {
+      await updateProfile(user.uid, { [modalField]: value });
+      await refreshProfile();
+      setModalVisible(false);
+    } catch (error) {
+      console.error('Error saving field:', error);
+      Alert.alert('Erreur', 'Impossible de sauvegarder.');
+    } finally {
+      setSavingField(false);
+    }
+  };
+
+  const getModalLabel = (field: string) => {
+    switch (field) {
+      case 'immatriculation': return 'Immatriculation';
+      case 'siret': return 'SIRET';
+      case 'vehicule': return 'Type de vehicule';
+      default: return '';
+    }
+  };
+
   const handleUploadDocument = (docId: string) => {
+    if (docId === 'siret') {
+      handleEditField('siret');
+      return;
+    }
+
     Alert.alert(
       'Telecharger un document',
-      'Cette fonctionnalite sera disponible prochainement.',
-      [{ text: 'OK' }]
+      'Choisissez une option',
+      [
+        {
+          text: 'Prendre une photo',
+          onPress: () => pickDocumentImage(docId, 'camera'),
+        },
+        {
+          text: 'Choisir depuis la galerie',
+          onPress: () => pickDocumentImage(docId, 'gallery'),
+        },
+        {
+          text: 'Choisir un PDF',
+          onPress: () => pickDocumentPDF(docId),
+        },
+        { text: 'Annuler', style: 'cancel' },
+      ]
     );
+  };
+
+  const pickDocumentImage = async (docId: string, source: 'camera' | 'gallery') => {
+    try {
+      let result: ImagePicker.ImagePickerResult;
+
+      if (source === 'camera') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permission requise', 'Autorisez l\'acces a la camera.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images'],
+          quality: 0.7,
+        });
+      } else {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permission requise', 'Autorisez l\'acces a la galerie.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          quality: 0.7,
+        });
+      }
+
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      await uploadDocument(docId, result.assets[0].uri, 'jpg');
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Erreur', 'Impossible de selectionner l\'image.');
+    }
+  };
+
+  const pickDocumentPDF = async (docId: string) => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+      });
+
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      await uploadDocument(docId, result.assets[0].uri, 'pdf');
+    } catch (error) {
+      console.error('Document picker error:', error);
+      Alert.alert('Erreur', 'Impossible de selectionner le document.');
+    }
+  };
+
+  const uploadDocument = async (docId: string, uri: string, ext: string) => {
+    if (!user) return;
+
+    setUploadingDoc(docId);
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      const storageRef = ref(storage, `profiles/${user.uid}/${docId}.${ext}`);
+      await uploadBytes(storageRef, blob);
+
+      const downloadURL = await getDownloadURL(storageRef);
+
+      await updateProfile(user.uid, { [docId]: downloadURL });
+      await refreshProfile();
+
+      Alert.alert('Succes', 'Document telecharge avec succes !');
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      Alert.alert('Erreur', error?.message || 'Impossible de telecharger le document.');
+    } finally {
+      setUploadingDoc(null);
+    }
   };
 
   const handleLogout = () => {
@@ -208,6 +432,13 @@ export default function ProfilScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.screenHeader}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+        </TouchableOpacity>
         <Text style={styles.screenTitle}>Mon profil</Text>
       </View>
 
@@ -217,7 +448,12 @@ export default function ProfilScreen() {
       >
         {/* Profile Header */}
         <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
+          <TouchableOpacity
+            style={styles.avatarContainer}
+            onPress={handleChangePhoto}
+            disabled={uploadingPhoto}
+            activeOpacity={0.7}
+          >
             {profile?.photoURL ? (
               <Image
                 source={{ uri: profile.photoURL }}
@@ -225,10 +461,17 @@ export default function ProfilScreen() {
               />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={36} color={COLORS.white} />
+                <Ionicons name="person" size={36} color={Colors.white} />
               </View>
             )}
-          </View>
+            <View style={styles.cameraOverlay}>
+              {uploadingPhoto ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <Ionicons name="camera" size={16} color={Colors.white} />
+              )}
+            </View>
+          </TouchableOpacity>
           <Text style={styles.profileName}>
             {profile?.prenom} {profile?.nom}
           </Text>
@@ -295,17 +538,21 @@ export default function ProfilScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Vehicule</Text>
           <View style={styles.infoCard}>
-            <InfoRow
-              icon="car-outline"
-              label="Type"
-              value={profile?.vehicule || 'Non renseigne'}
-            />
-            <InfoRow
-              icon="document-outline"
-              label="Immatriculation"
-              value="--"
-              isLast
-            />
+            <TouchableOpacity onPress={() => handleEditField('vehicule')} activeOpacity={0.7}>
+              <InfoRow
+                icon="car-outline"
+                label="Type"
+                value={profile?.vehicule || 'Non renseigne'}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleEditField('immatriculation')} activeOpacity={0.7}>
+              <InfoRow
+                icon="document-outline"
+                label="Immatriculation"
+                value={profile?.immatriculation || '--'}
+                isLast
+              />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -327,7 +574,7 @@ export default function ProfilScreen() {
                     <Ionicons
                       name={doc.icon}
                       size={20}
-                      color={COLORS.textLight}
+                      color={Colors.textLight}
                     />
                     <Text style={styles.documentLabel}>{doc.label}</Text>
                   </View>
@@ -353,12 +600,17 @@ export default function ProfilScreen() {
                       style={styles.uploadButton}
                       onPress={() => handleUploadDocument(doc.id)}
                       activeOpacity={0.7}
+                      disabled={uploadingDoc === doc.id}
                     >
-                      <Ionicons
-                        name="cloud-upload-outline"
-                        size={18}
-                        color={COLORS.secondary}
-                      />
+                      {uploadingDoc === doc.id ? (
+                        <ActivityIndicator size="small" color={Colors.secondary} />
+                      ) : (
+                        <Ionicons
+                          name="cloud-upload-outline"
+                          size={18}
+                          color={Colors.secondary}
+                        />
+                      )}
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -398,16 +650,16 @@ export default function ProfilScreen() {
                 <Ionicons
                   name="notifications-outline"
                   size={20}
-                  color={COLORS.textLight}
+                  color={Colors.textLight}
                 />
                 <Text style={styles.settingLabel}>Notifications</Text>
               </View>
               <Switch
                 value={notificationsEnabled}
                 onValueChange={handleToggleNotifications}
-                trackColor={{ false: COLORS.border, true: COLORS.success + '50' }}
+                trackColor={{ false: Colors.border, true: Colors.success + '50' }}
                 thumbColor={
-                  notificationsEnabled ? COLORS.success : COLORS.textLight
+                  notificationsEnabled ? Colors.success : Colors.textLight
                 }
               />
             </View>
@@ -446,10 +698,10 @@ export default function ProfilScreen() {
           activeOpacity={0.7}
         >
           {loggingOut ? (
-            <ActivityIndicator size="small" color={COLORS.danger} />
+            <ActivityIndicator size="small" color={Colors.danger} />
           ) : (
             <>
-              <Ionicons name="log-out-outline" size={20} color={COLORS.danger} />
+              <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
               <Text style={styles.logoutText}>Se deconnecter</Text>
             </>
           )}
@@ -457,6 +709,49 @@ export default function ProfilScreen() {
 
         <Text style={styles.versionText}>Coliway v1.0.0</Text>
       </ScrollView>
+
+      {/* Modal de saisie */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{getModalLabel(modalField)}</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={modalValue}
+              onChangeText={setModalValue}
+              placeholder={`Entrez votre ${getModalLabel(modalField).toLowerCase()}`}
+              autoFocus
+              autoCapitalize={modalField === 'immatriculation' ? 'characters' : 'none'}
+              keyboardType={modalField === 'siret' ? 'numeric' : 'default'}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalButtonCancel}
+                onPress={() => setModalVisible(false)}
+                disabled={savingField}
+              >
+                <Text style={styles.modalButtonCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalButtonConfirm}
+                onPress={handleSaveField}
+                disabled={savingField}
+              >
+                {savingField ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.modalButtonConfirmText}>Valider</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -473,7 +768,7 @@ interface InfoRowProps {
 const InfoRow: React.FC<InfoRowProps> = ({ icon, label, value, isLast }) => (
   <View style={[styles.infoRow, !isLast && styles.infoRowBorder]}>
     <View style={styles.infoRowLeft}>
-      <Ionicons name={icon} size={18} color={COLORS.textLight} />
+      <Ionicons name={icon} size={18} color={Colors.textLight} />
       <Text style={styles.infoLabel}>{label}</Text>
     </View>
     <Text style={styles.infoValue}>{value}</Text>
@@ -494,17 +789,17 @@ const LinkRow: React.FC<LinkRowProps> = ({ icon, label, onPress, isLast }) => (
     activeOpacity={0.7}
   >
     <View style={styles.infoRowLeft}>
-      <Ionicons name={icon} size={18} color={COLORS.textLight} />
+      <Ionicons name={icon} size={18} color={Colors.textLight} />
       <Text style={styles.linkLabel}>{label}</Text>
     </View>
-    <Ionicons name="chevron-forward" size={18} color={COLORS.textLight} />
+    <Ionicons name="chevron-forward" size={18} color={Colors.textLight} />
   </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: Colors.background,
   },
   scrollContent: {
     paddingBottom: 40,
@@ -512,26 +807,36 @@ const styles = StyleSheet.create({
 
   // Screen Header
   screenHeader: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: COLORS.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: Colors.border,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
   },
   screenTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: COLORS.text,
+    color: Colors.text,
   },
 
   // Profile Header
   profileHeader: {
     alignItems: 'center',
     paddingVertical: 24,
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
   },
   avatarContainer: {
     marginBottom: 12,
+    position: 'relative',
   },
   avatar: {
     width: 80,
@@ -542,14 +847,27 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.primary,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cameraOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.white,
   },
   profileName: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.text,
+    color: Colors.text,
   },
   ratingRow: {
     flexDirection: 'row',
@@ -560,19 +878,19 @@ const styles = StyleSheet.create({
   ratingText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
+    color: Colors.text,
     marginLeft: 6,
   },
   memberSince: {
     fontSize: 13,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     marginTop: 6,
   },
 
   // Profile Stats
   profileStats: {
     flexDirection: 'row',
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
     marginHorizontal: 16,
     marginTop: 12,
     borderRadius: 12,
@@ -590,16 +908,16 @@ const styles = StyleSheet.create({
   profileStatValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: COLORS.text,
+    color: Colors.text,
   },
   profileStatLabel: {
     fontSize: 12,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     marginTop: 4,
   },
   profileStatDivider: {
     width: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: Colors.border,
   },
 
   // Section
@@ -610,13 +928,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.text,
+    color: Colors.text,
     marginBottom: 10,
   },
 
   // Info Card
   infoCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -629,7 +947,7 @@ const styles = StyleSheet.create({
   },
   infoRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: Colors.border,
   },
   infoRowLeft: {
     flexDirection: 'row',
@@ -638,12 +956,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: COLORS.textLight,
+    color: Colors.textLight,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
+    color: Colors.text,
     maxWidth: '50%',
     textAlign: 'right',
   },
@@ -658,7 +976,7 @@ const styles = StyleSheet.create({
   },
   documentRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: Colors.border,
   },
   documentLeft: {
     flexDirection: 'row',
@@ -668,7 +986,7 @@ const styles = StyleSheet.create({
   },
   documentLabel: {
     fontSize: 14,
-    color: COLORS.text,
+    color: Colors.text,
   },
   documentRight: {
     flexDirection: 'row',
@@ -691,7 +1009,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: COLORS.secondary + '10',
+    backgroundColor: Colors.secondary + '10',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -700,7 +1018,7 @@ const styles = StyleSheet.create({
   statusCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
     borderRadius: 12,
     padding: 16,
     gap: 14,
@@ -714,7 +1032,7 @@ const styles = StyleSheet.create({
   },
   statusDescription: {
     fontSize: 13,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     marginTop: 4,
     lineHeight: 18,
   },
@@ -734,7 +1052,7 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     fontSize: 14,
-    color: COLORS.text,
+    color: Colors.text,
   },
 
   // Links
@@ -747,7 +1065,7 @@ const styles = StyleSheet.create({
   },
   linkLabel: {
     fontSize: 14,
-    color: COLORS.text,
+    color: Colors.text,
   },
 
   // Logout
@@ -760,20 +1078,82 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.danger,
+    borderColor: Colors.danger,
     gap: 8,
   },
   logoutText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.danger,
+    color: Colors.danger,
   },
 
   // Version
   versionText: {
     textAlign: 'center',
     fontSize: 12,
-    color: COLORS.textLight,
+    color: Colors.textLight,
     marginTop: 20,
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: Colors.text,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButtonCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  modalButtonCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.textLight,
+  },
+  modalButtonConfirm: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonConfirmText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.white,
   },
 });

@@ -123,7 +123,8 @@ export function getLivreurOrders(
  * Returns an unsubscribe function.
  */
 export function getAvailableOrders(
-  callback: (orders: Order[]) => void
+  callback: (orders: Order[]) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe {
   const q = query(
     collection(db, 'commandes'),
@@ -137,6 +138,9 @@ export function getAvailableOrders(
       ...docSnap.data(),
     })) as Order[];
     callback(orders);
+  }, (error) => {
+    console.error('getAvailableOrders error:', error);
+    onError?.(error);
   });
 }
 

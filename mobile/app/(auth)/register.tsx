@@ -64,7 +64,23 @@ export default function RegisterScreen() {
     setGoogleLoading(true);
     try {
       await GoogleSignin.hasPlayServices();
-      const response = await GoogleSignin.signIn
+      await GoogleSignin.signOut();
+      const response = await GoogleSignin.signIn();
+      const idToken = response.data?.idToken;
+      if (!idToken) {
+        throw new Error('No ID token received');
+      }
+      await signInWithGoogle(idToken, role);
+      router.replace('/');
+    } catch (error: any) {
+      console.error('Google sign-up error:', error);
+      if (error.code !== 'SIGN_IN_CANCELLED') {
+        Alert.alert('Erreur', 'Impossible de s\'inscrire avec Google.');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const [role, setRole] = useState<UserRole>('client');
   const [acceptTerms, setAcceptTerms] = useState(false);
@@ -484,7 +500,7 @@ export default function RegisterScreen() {
             {/* Google Sign-Up */}
             <TouchableOpacity
               style={styles.googleButton}
-              onPress={() => promptAsync()}
+              onPress={handleGoogleSignUp}
               disabled={googleLoading}
               activeOpacity={0.7}
             >

@@ -29,7 +29,10 @@ export interface UserProfile {
   photoURL?: string;
   adresse?: string;
   vehicule?: string;
+  immatriculation?: string;
   permis?: string;
+  siret?: string;
+  assurance?: string;
   note?: number;
   nombreLivraisons?: number;
   createdAt: unknown;
@@ -89,24 +92,49 @@ export async function signUp(
 /**
  * Signs in with Google credential (ID token from Google Sign-In).
  */
-export async function signInWithGoogle(idToken: string): Promise<UserCredential> {
+export async function signInWithGoogle(idToken: string, role: UserRole = 'client'): Promise<UserCredential> {
   const credential = GoogleAuthProvider.credential(idToken);
   const userCredential = await signInWithCredential(auth, credential);
   const user = userCredential.user;
 
-  // Create/merge profile on first Google sign-in
-  const userProfile: Record<string, unknown> = {
-    uid: user.uid,
-    email: user.email || '',
-    nom: user.displayName ? user.displayName.split(' ').slice(1).join(' ') : '',
-    prenom: user.displayName ? user.displayName.split(' ')[0] : '',
-    photoURL: user.photoURL || '',
-    role: 'client',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
+  const userRef = doc(db, 'users', user.uid);
+  const existingDoc = await getDoc(userRef);
 
-  await setDoc(doc(db, 'users', user.uid), userProfile, { merge: true });
+  if (!existingDoc.exists()) {
+    // First sign-in: create full profile
+    const userProfile: Record<string, unknown> = {
+      uid: user.uid,
+      email: user.email || '',
+      nom: user.displayName ? user.displayName.split(' ').slice(1).join(' ') : '',
+      prenom: user.displayName ? user.displayName.split(' ')[0] : '',
+      photoURL: user.photoURL || '',
+      role,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    if (role === 'livreur') {
+      userProfile.note = 5;
+      userProfile.nombreLivraisons = 0;
+    }
+
+    await setDoc(userRef, userProfile);
+  } else if (role === 'livreur') {
+    // Existing user re-registering as livreur: update role + livreur fields
+    await updateDoc(userRef, {
+      role: 'livreur',
+      note: existingDoc.data().note ?? 5,
+      nombreLivraisons: existingDoc.data().nombreLivraisons ?? 0,
+      photoURL: user.photoURL || '',
+      updatedAt: serverTimestamp(),
+    });
+  } else {
+    // Login: update photo only, don't touch role
+    await updateDoc(userRef, {
+      photoURL: user.photoURL || '',
+      updatedAt: serverTimestamp(),
+    });
+  }
 
   return userCredential;
 }

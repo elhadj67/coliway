@@ -9,24 +9,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { getLivreurOrders, Order } from '@/services/orders';
 import { ORDER_STATUS, OrderStatus, COLIS_TYPES } from '@/constants/config';
+import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { Timestamp } from 'firebase/firestore';
-
-const COLORS = {
-  primary: '#1B3A5C',
-  secondary: '#2E86DE',
-  accent: '#F39C12',
-  success: '#27AE60',
-  danger: '#E74C3C',
-  background: '#F5F7FA',
-  white: '#FFFFFF',
-  text: '#2C3E50',
-  textLight: '#7F8C8D',
-  border: '#E0E6ED',
-};
 
 const COMMISSION_RATE = 0.20;
 
@@ -107,20 +94,20 @@ const HistoryOrderCard: React.FC<HistoryOrderCardProps> = ({ order }) => {
 
       <View style={styles.orderBody}>
         <View style={styles.colisRow}>
-          <Ionicons name="cube-outline" size={16} color={COLORS.textLight} />
+          <Ionicons name="cube-outline" size={16} color={Colors.textLight} />
           <Text style={styles.colisText}>{getColisLabel(order.typeColis)}</Text>
         </View>
 
         <View style={styles.addressSection}>
           <View style={styles.addressRow}>
-            <Ionicons name="ellipse" size={8} color={COLORS.success} />
+            <Ionicons name="ellipse" size={8} color={Colors.success} />
             <Text style={styles.addressText} numberOfLines={1}>
               {order.adresseEnlevement.adresse}
             </Text>
           </View>
           <View style={styles.addressDivider} />
           <View style={styles.addressRow}>
-            <Ionicons name="ellipse" size={8} color={COLORS.danger} />
+            <Ionicons name="ellipse" size={8} color={Colors.danger} />
             <Text style={styles.addressText} numberOfLines={1}>
               {order.adresseLivraison.adresse}
             </Text>
@@ -192,12 +179,12 @@ export default function HistoriqueScreen() {
       {/* Summary */}
       <View style={styles.summaryContainer}>
         <View style={styles.summaryCard}>
-          <Ionicons name="bicycle-outline" size={24} color={COLORS.secondary} />
+          <Ionicons name="bicycle-outline" size={24} color={Colors.secondary} />
           <Text style={styles.summaryValue}>{totalCourses}</Text>
           <Text style={styles.summaryLabel}>Total courses</Text>
         </View>
         <View style={styles.summaryCard}>
-          <Ionicons name="cash-outline" size={24} color={COLORS.success} />
+          <Ionicons name="cash-outline" size={24} color={Colors.success} />
           <Text style={styles.summaryValue}>{totalGains.toFixed(2)} EUR</Text>
           <Text style={styles.summaryLabel}>Total gains</Text>
         </View>
@@ -231,7 +218,7 @@ export default function HistoriqueScreen() {
 
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="receipt-outline" size={48} color={COLORS.textLight} />
+      <Ionicons name="receipt-outline" size={48} color={Colors.textLight} />
       <Text style={styles.emptyTitle}>Aucune livraison</Text>
       <Text style={styles.emptySubtitle}>
         Votre historique de livraisons apparaitra ici
@@ -241,19 +228,15 @@ export default function HistoriqueScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Chargement de l'historique...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.screenHeader}>
-        <Text style={styles.screenTitle}>Historique</Text>
-      </View>
-
+    <View style={styles.container}>
       <FlatList
         data={filteredOrders}
         keyExtractor={(item) => item.id}
@@ -265,62 +248,48 @@ export default function HistoriqueScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            colors={[COLORS.primary]}
-            tintColor={COLORS.primary}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
           />
         }
         showsVerticalScrollIndicator={false}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.textLight,
+    marginTop: Spacing.md,
+    fontSize: Typography.sizes.base,
+    color: Colors.textLight,
   },
   listContent: {
-    paddingBottom: 24,
-  },
-
-  // Screen Header
-  screenHeader: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  screenTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: COLORS.text,
+    paddingBottom: Spacing.xl,
   },
 
   // Summary
   summaryContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 12,
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.base,
+    gap: Spacing.md,
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.base,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -329,54 +298,54 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   summaryValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginTop: 8,
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+    marginTop: Spacing.sm,
   },
   summaryLabel: {
     fontSize: 13,
-    color: COLORS.textLight,
-    marginTop: 4,
+    color: Colors.textLight,
+    marginTop: Spacing.xs,
   },
 
   // Filter Tabs
   filterContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 12,
-    gap: 8,
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    gap: Spacing.sm,
   },
   filterTab: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: COLORS.white,
+    backgroundColor: Colors.white,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: Colors.border,
   },
   filterTabActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   filterTabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textLight,
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.textLight,
   },
   filterTabTextActive: {
-    color: COLORS.white,
+    color: Colors.white,
   },
 
   // Order Card
   orderCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    marginHorizontal: 16,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    marginHorizontal: Spacing.base,
     marginBottom: 10,
-    padding: 16,
+    padding: Spacing.base,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
@@ -387,28 +356,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   orderDateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.sm,
   },
   orderDate: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
   },
   orderTime: {
     fontSize: 13,
-    color: COLORS.textLight,
+    color: Colors.textLight,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 16,
+    paddingVertical: Spacing.xs,
+    borderRadius: Spacing.base,
   },
   statusDot: {
     width: 6,
@@ -417,13 +386,13 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
   },
 
   // Order Body
   orderBody: {
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   colisRow: {
     flexDirection: 'row',
@@ -433,27 +402,27 @@ const styles = StyleSheet.create({
   },
   colisText: {
     fontSize: 13,
-    color: COLORS.textLight,
-    fontWeight: '500',
+    color: Colors.textLight,
+    fontWeight: Typography.weights.medium,
   },
   addressSection: {
-    paddingLeft: 4,
+    paddingLeft: Spacing.xs,
   },
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.sm,
     paddingVertical: 2,
   },
   addressDivider: {
     width: 1,
     height: 10,
-    backgroundColor: COLORS.border,
+    backgroundColor: Colors.border,
     marginLeft: 3,
   },
   addressText: {
     fontSize: 13,
-    color: COLORS.text,
+    color: Colors.text,
     flex: 1,
   },
 
@@ -462,22 +431,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
+    paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: Colors.border,
   },
   orderIdText: {
-    fontSize: 12,
-    color: COLORS.textLight,
+    fontSize: Typography.sizes.sm,
+    color: Colors.textLight,
     fontFamily: 'System',
   },
   earningsText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.success,
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.bold,
+    color: Colors.success,
   },
   earningsCancelled: {
-    color: COLORS.textLight,
+    color: Colors.textLight,
     textDecorationLine: 'line-through',
   },
 
@@ -486,19 +455,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 48,
-    paddingHorizontal: 32,
+    paddingHorizontal: Spacing.xxl,
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginTop: 16,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
+    marginTop: Spacing.base,
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: COLORS.textLight,
+    fontSize: Typography.sizes.md,
+    color: Colors.textLight,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: Spacing.sm,
     lineHeight: 20,
   },
 });

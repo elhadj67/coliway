@@ -19,7 +19,30 @@ import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/
 import { useAuth } from '@/hooks/useAuth';
 import Button from '@/components/Button';
 
-export default function ClientProfileScreen() {
+function renderStars(rating: number): React.ReactNode[] {
+  const stars: React.ReactNode[] = [];
+  const fullStars = Math.floor(rating);
+  const halfStar = rating - fullStars >= 0.5;
+
+  for (let i = 0; i < 5; i++) {
+    if (i < fullStars) {
+      stars.push(
+        <Ionicons key={i} name="star" size={16} color={Colors.accent} />
+      );
+    } else if (i === fullStars && halfStar) {
+      stars.push(
+        <Ionicons key={i} name="star-half" size={16} color={Colors.accent} />
+      );
+    } else {
+      stars.push(
+        <Ionicons key={i} name="star-outline" size={16} color={Colors.border} />
+      );
+    }
+  }
+  return stars;
+}
+
+export default function LivreurProfileTabScreen() {
   const router = useRouter();
   const { user, profile, signOut, refreshProfile } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -27,21 +50,21 @@ export default function ClientProfileScreen() {
 
   const handleLogout = () => {
     Alert.alert(
-      'Déconnexion',
-      'Êtes-vous sûr de vouloir vous déconnecter ?',
+      'Deconnexion',
+      'Voulez-vous vraiment vous deconnecter ?',
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Se déconnecter',
+          text: 'Se deconnecter',
           style: 'destructive',
           onPress: async () => {
             setLoggingOut(true);
             try {
               await signOut();
-              router.replace('/(auth)/login');
+              router.replace('/(auth)/login' as any);
             } catch (error) {
               console.error('Logout error:', error);
-              Alert.alert('Erreur', 'Impossible de se déconnecter.');
+              Alert.alert('Erreur', 'Impossible de se deconnecter.');
             } finally {
               setLoggingOut(false);
             }
@@ -52,6 +75,7 @@ export default function ClientProfileScreen() {
   };
 
   const handleChangePhoto = () => {
+    console.log('handleChangePhoto called');
     Alert.alert(
       'Photo de profil',
       'Choisissez une option',
@@ -122,17 +146,13 @@ export default function ClientProfileScreen() {
         xhr.send(null);
       });
 
-      // Upload to Firebase Storage
       const storageRef = ref(storage, `profiles/${user.uid}/photo.jpg`);
       await uploadBytes(storageRef, blob);
 
-      // Get download URL
       const downloadURL = await getDownloadURL(storageRef);
 
-      // Update profile in Firestore
       await updateProfile(user.uid, { photoURL: downloadURL });
 
-      // Refresh profile to show new photo
       await refreshProfile();
 
       Alert.alert('Succès', 'Photo de profil mise à jour !');
@@ -143,8 +163,6 @@ export default function ClientProfileScreen() {
       setUploadingPhoto(false);
     }
   };
-
-  const emailVerified = user?.emailVerified ?? false;
 
   return (
     <ScrollView
@@ -164,13 +182,9 @@ export default function ClientProfileScreen() {
             <Image source={{ uri: profile.photoURL }} style={styles.avatar} />
           ) : (
             <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarInitials}>
-                {(profile?.prenom?.[0] || '').toUpperCase()}
-                {(profile?.nom?.[0] || '').toUpperCase()}
-              </Text>
+              <Ionicons name="person" size={36} color={Colors.white} />
             </View>
           )}
-          {/* Camera overlay */}
           <View style={styles.cameraOverlay}>
             {uploadingPhoto ? (
               <ActivityIndicator size="small" color={Colors.white} />
@@ -182,54 +196,33 @@ export default function ClientProfileScreen() {
         <Text style={styles.userName}>
           {profile?.prenom} {profile?.nom}
         </Text>
-        <Text style={styles.userRole}>
-          {profile?.role === 'client' ? 'Client' : profile?.role === 'livreur' ? 'Livreur' : 'Admin'}
-        </Text>
-      </View>
-
-      {/* Email verification banner */}
-      {!emailVerified && (
-        <View style={styles.verificationBanner}>
-          <Ionicons name="mail-unread-outline" size={20} color={Colors.accent} />
-          <Text style={styles.verificationText}>
-            Email non vérifié. Consultez votre boite mail.
+        <View style={styles.ratingRow}>
+          {renderStars(profile?.note || 0)}
+          <Text style={styles.ratingText}>
+            {(profile?.note || 0).toFixed(1)}
           </Text>
         </View>
-      )}
+      </View>
 
-      {/* Info cards */}
-      <View style={styles.infoCard}>
-        <Text style={styles.sectionTitle}>Informations personnelles</Text>
-
-        <View style={styles.infoRow}>
-          <Ionicons name="person-outline" size={20} color={Colors.textLight} />
-          <View style={styles.infoContent}>
-            <Text style={styles.infoLabel}>Nom complet</Text>
-            <Text style={styles.infoValue}>
-              {profile?.prenom || '—'} {profile?.nom || '—'}
-            </Text>
-          </View>
+      {/* Quick Stats */}
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>
+            {profile?.nombreLivraisons || 0}
+          </Text>
+          <Text style={styles.statLabel}>Courses</Text>
         </View>
-
-        <View style={styles.infoRow}>
-          <Ionicons name="mail-outline" size={20} color={Colors.textLight} />
-          <View style={styles.infoContent}>
-            <Text style={styles.infoLabel}>Email</Text>
-            <View style={styles.emailRow}>
-              <Text style={styles.infoValue}>{profile?.email || user?.email || '—'}</Text>
-              {emailVerified && (
-                <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
-              )}
-            </View>
-          </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>
+            {(profile?.note || 0).toFixed(1)}
+          </Text>
+          <Text style={styles.statLabel}>Note</Text>
         </View>
-
-        <View style={styles.infoRow}>
-          <Ionicons name="call-outline" size={20} color={Colors.textLight} />
-          <View style={styles.infoContent}>
-            <Text style={styles.infoLabel}>Téléphone</Text>
-            <Text style={styles.infoValue}>{profile?.telephone || '—'}</Text>
-          </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>--</Text>
+          <Text style={styles.statLabel}>Taux accept.</Text>
         </View>
       </View>
 
@@ -237,11 +230,24 @@ export default function ClientProfileScreen() {
       <View style={styles.actionsCard}>
         <TouchableOpacity
           style={styles.actionRow}
-          onPress={() => router.push('/(client)/historique')}
+          onPress={() => router.push('/(livreur)/gains')}
         >
           <View style={styles.actionLeft}>
-            <Ionicons name="time-outline" size={22} color={Colors.primary} />
-            <Text style={styles.actionText}>Historique des commandes</Text>
+            <Ionicons name="cash-outline" size={22} color={Colors.success} />
+            <Text style={styles.actionText}>Mes gains</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={Colors.textLight} />
+        </TouchableOpacity>
+
+        <View style={styles.actionDivider} />
+
+        <TouchableOpacity
+          style={styles.actionRow}
+          onPress={() => router.push('/(livreur)/profil')}
+        >
+          <View style={styles.actionLeft}>
+            <Ionicons name="person-circle-outline" size={22} color={Colors.primary} />
+            <Text style={styles.actionText}>Mon profil complet</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={Colors.textLight} />
         </TouchableOpacity>
@@ -249,7 +255,7 @@ export default function ClientProfileScreen() {
 
       {/* Logout */}
       <Button
-        title="Se déconnecter"
+        title="Se deconnecter"
         onPress={handleLogout}
         variant="danger"
         icon="log-out-outline"
@@ -296,11 +302,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarInitials: {
-    fontSize: 32,
-    fontWeight: Typography.weights.bold,
-    color: Colors.white,
-  },
   cameraOverlay: {
     position: 'absolute',
     bottom: 0,
@@ -319,70 +320,50 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.bold,
     color: Colors.text,
   },
-  userRole: {
-    fontSize: Typography.sizes.md,
-    color: Colors.textLight,
-    marginTop: 2,
-  },
-  verificationBanner: {
+  ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF3CD',
-    padding: Spacing.md,
-    marginHorizontal: Spacing.base,
-    marginTop: Spacing.base,
-    borderRadius: BorderRadius.lg,
-    gap: Spacing.sm,
-    borderWidth: 1,
-    borderColor: '#FFEEBA',
+    marginTop: Spacing.sm,
+    gap: 2,
   },
-  verificationText: {
+  ratingText: {
     fontSize: Typography.sizes.md,
-    color: '#856404',
-    flex: 1,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
+    marginLeft: 6,
   },
-  infoCard: {
+  statsRow: {
+    flexDirection: 'row',
     backgroundColor: Colors.white,
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.md,
     borderRadius: BorderRadius.lg,
     padding: Spacing.base,
-    margin: Spacing.base,
     ...Shadows.card,
   },
-  sectionTitle: {
-    fontSize: Typography.sizes.lg,
-    fontWeight: Typography.weights.bold,
-    color: Colors.primary,
-    marginBottom: Spacing.base,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: Spacing.sm,
-    gap: Spacing.md,
-  },
-  infoContent: {
+  statCard: {
     flex: 1,
+    alignItems: 'center',
   },
-  infoLabel: {
+  statValue: {
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+  },
+  statLabel: {
     fontSize: Typography.sizes.sm,
     color: Colors.textLight,
-    marginBottom: 2,
+    marginTop: Spacing.xs,
   },
-  infoValue: {
-    fontSize: Typography.sizes.base,
-    color: Colors.text,
-    fontWeight: Typography.weights.medium,
-  },
-  emailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
+  statDivider: {
+    width: 1,
+    backgroundColor: Colors.border,
   },
   actionsCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
     marginHorizontal: Spacing.base,
-    marginBottom: Spacing.base,
+    marginTop: Spacing.base,
     ...Shadows.card,
   },
   actionRow: {
@@ -401,9 +382,14 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.medium,
     color: Colors.text,
   },
+  actionDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: Spacing.base,
+  },
   logoutButton: {
     marginHorizontal: Spacing.base,
-    marginTop: Spacing.sm,
+    marginTop: Spacing.lg,
   },
   versionText: {
     textAlign: 'center',
