@@ -8,22 +8,51 @@ import {
   ScrollView,
   Platform,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { GOOGLE_WEB_CLIENT_ID } from '@/constants/config';
 import { useAuth } from '@/hooks/useAuth';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 
+GoogleSignin.configure({
+  webClientId: GOOGLE_WEB_CLIENT_ID,
+});
+
 export default function LoginScreen() {
   const router = useRouter();
-  const { signIn, isClient, isLivreur } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      const idToken = response.data?.idToken;
+      if (!idToken) {
+        throw new Error('No ID token received');
+      }
+      await signInWithGoogle(idToken);
+      router.replace('/');
+    } catch (error: any) {
+      console.error('Google sign-in error:', error);
+      if (error.code !== 'SIGN_IN_CANCELLED') {
+        Alert.alert('Erreur', 'Impossible de se connecter avec Google.');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const validateForm = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};
@@ -52,11 +81,6 @@ export default function LoginScreen() {
 
     try {
       await signIn(email.trim(), password);
-
-      // After signIn resolves, the auth context will have updated profile.
-      // We redirect from the root index based on role, but we can also
-      // navigate directly here. The router.replace('/') will trigger the
-      // index redirect logic.
       router.replace('/');
     } catch (error: any) {
       let errorMessage = 'Une erreur est survenue. Veuillez réessayer.';
@@ -157,6 +181,26 @@ export default function LoginScreen() {
               icon="log-in-outline"
               style={styles.loginButton}
             />
+
+            {/* Separator */}
+            <View style={styles.separatorRow}>
+              <View style={styles.separatorLine} />
+              <Text style={styles.separatorText}>ou</Text>
+              <View style={styles.separatorLine} />
+            </View>
+
+            {/* Google Sign-In */}
+            <TouchableOpacity
+              style={styles.googleButton}
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="logo-google" size={20} color="#DB4437" />
+              <Text style={styles.googleButtonText}>
+                {googleLoading ? 'Connexion...' : 'Continuer avec Google'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Bottom Section */}
@@ -233,6 +277,38 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     marginTop: Spacing.sm,
+  },
+  separatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.lg,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  separatorText: {
+    marginHorizontal: Spacing.base,
+    fontSize: Typography.sizes.md,
+    color: Colors.textLight,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.md,
+  },
+  googleButtonText: {
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.medium,
+    color: Colors.text,
   },
   bottomSection: {
     flexDirection: 'row',

@@ -8,14 +8,20 @@ import {
   ScrollView,
   Platform,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { UserRole } from '@/constants/config';
+import { UserRole, GOOGLE_WEB_CLIENT_ID } from '@/constants/config';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
+
+GoogleSignin.configure({
+  webClientId: GOOGLE_WEB_CLIENT_ID,
+});
 
 const VEHICULE_OPTIONS = [
   { label: 'Voiture', value: 'voiture' },
@@ -50,7 +56,15 @@ interface FormErrors {
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { signUp } = useAuth();
+  const { signUp, signInWithGoogle } = useAuth();
+
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleSignUp = async () => {
+    setGoogleLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn
 
   const [role, setRole] = useState<UserRole>('client');
   const [acceptTerms, setAcceptTerms] = useState(false);
@@ -87,20 +101,45 @@ export default function RegisterScreen() {
 
     if (!form.email.trim()) {
       newErrors.email = 'L\'adresse email est requise';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      newErrors.email = 'Adresse email invalide';
+    } else if (!form.email.trim().includes('@')) {
+      newErrors.email = 'L\'adresse email doit contenir un @';
+    } else if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(form.email.trim())) {
+      newErrors.email = 'Format invalide (ex: nom@domaine.com)';
     }
 
+    const phoneDigits = form.telephone.replace(/[\s.\-()]/g, '');
     if (!form.telephone.trim()) {
       newErrors.telephone = 'Le numéro de téléphone est requis';
-    } else if (!/^(\+33|0)[1-9](\d{2}){4}$/.test(form.telephone.replace(/\s/g, ''))) {
-      newErrors.telephone = 'Numéro de téléphone invalide';
+    } else if (phoneDigits.startsWith('+33')) {
+      if (phoneDigits.length !== 12) {
+        newErrors.telephone = `Numéro invalide : ${phoneDigits.length - 1}/11 chiffres (format +33XXXXXXXXX)`;
+      } else if (!/^\+33[1-9]\d{8}$/.test(phoneDigits)) {
+        newErrors.telephone = 'Format invalide (ex: +33612345678)';
+      }
+    } else if (phoneDigits.startsWith('0')) {
+      if (phoneDigits.length !== 10) {
+        newErrors.telephone = `Numéro invalide : ${phoneDigits.length}/10 chiffres attendus`;
+      } else if (!/^0[1-9]\d{8}$/.test(phoneDigits)) {
+        newErrors.telephone = 'Format invalide (ex: 0612345678)';
+      }
+    } else {
+      newErrors.telephone = 'Le numéro doit commencer par 0 ou +33';
     }
 
+    // Validation ANSSI (Recommandations relatives à l'authentification
+    // multifacteur et aux mots de passe, 2021) - Entropie forte
     if (!form.password) {
       newErrors.password = 'Le mot de passe est requis';
-    } else if (form.password.length < 6) {
-      newErrors.password = 'Le mot de passe doit contenir au moins 6 caractères';
+    } else if (form.password.length < 8) {
+      newErrors.password = 'Minimum 8 caractères';
+    } else if (!/[A-Z]/.test(form.password)) {
+      newErrors.password = 'Au moins une lettre majuscule requise';
+    } else if (!/[a-z]/.test(form.password)) {
+      newErrors.password = 'Au moins une lettre minuscule requise';
+    } else if (!/[0-9]/.test(form.password)) {
+      newErrors.password = 'Au moins un chiffre requis';
+    } else if (!/[^A-Za-z0-9]/.test(form.password)) {
+      newErrors.password = 'Au moins un caractère spécial requis (!@#$%...)';
     }
 
     if (!form.confirmPassword) {
@@ -150,14 +189,26 @@ export default function RegisterScreen() {
       // Redirect to the root which will handle role-based routing.
       router.replace('/');
     } catch (error: any) {
+      console.error('Registration error:', JSON.stringify({ code: error?.code, message: error?.message }));
       let errorMessage = 'Une erreur est survenue. Veuillez réessayer.';
 
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'Cette adresse email est déjà utilisée.';
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'Le mot de passe est trop faible.';
-      } else if (error.code === 'auth/invalid-email') {
+      const code = error?.code || '';
+      if (code === 'auth/email-already-in-use' || code.includes('email-already')) {
+        errorMessage = 'Cette adresse email est déjà utilisée. Connectez-vous plutôt.';
+      } else if (code === 'auth/weak-password') {
+        errorMessage = 'Le mot de passe est trop faible (min. 6 car. Firebase).';
+      } else if (code === 'auth/invalid-email') {
         errorMessage = 'Adresse email invalide.';
+      } else if (code === 'auth/network-request-failed') {
+        errorMessage = 'Erreur réseau. Vérifiez votre connexion internet.';
+      } else if (code === 'auth/too-many-requests') {
+        errorMessage = 'Trop de tentatives. Veuillez réessayer plus tard.';
+      } else if (code === 'auth/operation-not-allowed') {
+        errorMessage = 'L\'inscription par email n\'est pas activée.';
+      } else if (code.includes('permission-denied') || code === 'PERMISSION_DENIED') {
+        errorMessage = 'Erreur de permissions. Veuillez réessayer.';
+      } else if (error?.message) {
+        errorMessage = `Erreur : ${error.message}`;
       }
 
       setErrors({ general: errorMessage });
@@ -305,7 +356,7 @@ export default function RegisterScreen() {
             <Input
               label="Mot de passe"
               icon="lock-closed-outline"
-              placeholder="Minimum 6 caractères"
+              placeholder="Min. 8 car., maj., min., chiffre, spécial"
               value={form.password}
               onChangeText={(text) => updateField('password', text)}
               error={errors.password}
@@ -422,6 +473,26 @@ export default function RegisterScreen() {
               icon="person-add-outline"
               style={styles.registerButton}
             />
+
+            {/* Separator */}
+            <View style={styles.separatorRow}>
+              <View style={styles.separatorLine} />
+              <Text style={styles.separatorText}>ou</Text>
+              <View style={styles.separatorLine} />
+            </View>
+
+            {/* Google Sign-Up */}
+            <TouchableOpacity
+              style={styles.googleButton}
+              onPress={() => promptAsync()}
+              disabled={googleLoading}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="logo-google" size={20} color="#DB4437" />
+              <Text style={styles.googleButtonText}>
+                {googleLoading ? 'Inscription...' : 'Continuer avec Google'}
+              </Text>
+            </TouchableOpacity>
 
             {/* Bottom Link */}
             <View style={styles.bottomSection}>
@@ -625,6 +696,42 @@ const styles = StyleSheet.create({
   },
   registerButton: {
     marginTop: Spacing.base,
+  },
+  separatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.lg,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  separatorText: {
+    marginHorizontal: Spacing.base,
+    fontSize: Typography.sizes.md,
+    color: Colors.textLight,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.md,
+  },
+  googleIcon: {
+    width: 22,
+    height: 22,
+  },
+  googleButtonText: {
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.medium,
+    color: Colors.text,
   },
   bottomSection: {
     flexDirection: 'row',

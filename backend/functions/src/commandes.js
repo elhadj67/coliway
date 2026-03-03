@@ -41,7 +41,7 @@ async function calculerPrix(distance_km, colis_type) {
 // ============================================================
 // createCommande - Create a new order
 // ============================================================
-exports.createCommande = onCall(async (request) => {
+exports.createCommande = onCall({ region: "europe-west1" }, async (request) => {
   // Verifier l'authentification
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte pour creer une commande.");
@@ -149,7 +149,7 @@ exports.createCommande = onCall(async (request) => {
 // ============================================================
 // accepterCommande - Livreur accepts an order
 // ============================================================
-exports.accepterCommande = onCall(async (request) => {
+exports.accepterCommande = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }
@@ -217,7 +217,7 @@ exports.accepterCommande = onCall(async (request) => {
 // en_attente -> acceptee -> en_cours -> livree
 // Also handles 'annulee'
 // ============================================================
-exports.updateCommandeStatus = onCall(async (request) => {
+exports.updateCommandeStatus = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }
@@ -319,7 +319,7 @@ exports.updateCommandeStatus = onCall(async (request) => {
 // ============================================================
 // getCommandesDisponibles - Get available orders for livreurs
 // ============================================================
-exports.getCommandesDisponibles = onCall(async (request) => {
+exports.getCommandesDisponibles = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }
@@ -354,7 +354,7 @@ exports.getCommandesDisponibles = onCall(async (request) => {
 // ============================================================
 // getCommandesClient - Get orders for a specific client
 // ============================================================
-exports.getCommandesClient = onCall(async (request) => {
+exports.getCommandesClient = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }
@@ -390,7 +390,7 @@ exports.getCommandesClient = onCall(async (request) => {
 // ============================================================
 // getCommandesLivreur - Get orders for a specific livreur
 // ============================================================
-exports.getCommandesLivreur = onCall(async (request) => {
+exports.getCommandesLivreur = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }

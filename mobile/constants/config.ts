@@ -14,6 +14,9 @@ export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51T6Jr70SFdhv4iZ89AvamlfGYTZgDo6o
 // Google Maps configuration
 export const GOOGLE_MAPS_API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY';
 
+// Google Sign-In (Web Client ID from Firebase Console > Authentication > Google provider)
+export const GOOGLE_WEB_CLIENT_ID = '553047283159-vc4u3l43451agmapq90q6nscb5d8i8ro.apps.googleusercontent.com';
+
 // API base URL (Cloud Functions)
 export const API_BASE_URL = 'https://europe-west1-coliway-app.cloudfunctions.net';
 
@@ -23,14 +26,67 @@ export interface ColisType {
   label: string;
   icon: string;
   poidsMax: number;
+  conditions: string[];
 }
 
 export const COLIS_TYPES: ColisType[] = [
-  { id: 'enveloppe', label: 'Enveloppe', icon: 'mail', poidsMax: 0.5 },
-  { id: 'petit', label: 'Petit Colis', icon: 'cube-outline', poidsMax: 5 },
-  { id: 'moyen', label: 'Moyen Colis', icon: 'cube', poidsMax: 15 },
-  { id: 'gros', label: 'Gros Colis', icon: 'archive', poidsMax: 30 },
-  { id: 'palette', label: 'Palette', icon: 'grid', poidsMax: 500 },
+  {
+    id: 'enveloppe',
+    label: 'Enveloppe',
+    icon: 'mail',
+    poidsMax: 0.5,
+    conditions: [
+      'Documents, lettres, format A4 max',
+      'Poids max : 0,5 kg',
+      'Pas de contenu fragile',
+    ],
+  },
+  {
+    id: 'petit',
+    label: 'Petit Colis',
+    icon: 'cube-outline',
+    poidsMax: 5,
+    conditions: [
+      'Taille : type boite a chaussures',
+      'Poids max : 5 kg',
+      'Objets fragiles acceptes (signalez-le)',
+    ],
+  },
+  {
+    id: 'moyen',
+    label: 'Moyen Colis',
+    icon: 'cube',
+    poidsMax: 15,
+    conditions: [
+      'Taille : type carton de demenagement petit',
+      'Poids max : 15 kg',
+      'Emballage solide requis',
+    ],
+  },
+  {
+    id: 'gros',
+    label: 'Gros Colis',
+    icon: 'archive',
+    poidsMax: 30,
+    conditions: [
+      'Taille : type carton de demenagement grand',
+      'Poids max : 30 kg',
+      'Manutention par le livreur non garantie',
+      'Emballage renforce obligatoire',
+    ],
+  },
+  {
+    id: 'palette',
+    label: 'Palette',
+    icon: 'grid',
+    poidsMax: 500,
+    conditions: [
+      'Palette standard (120x80 cm)',
+      'Poids max : 500 kg',
+      'Vehicule utilitaire requis',
+      'Chargement / dechargement a votre charge',
+    ],
+  },
 ];
 
 // Order status configuration

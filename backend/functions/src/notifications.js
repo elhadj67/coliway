@@ -7,7 +7,7 @@ const db = admin.firestore();
 // ============================================================
 // sendNotification - Send FCM push notification to a user
 // ============================================================
-exports.sendNotification = onCall(async (request) => {
+exports.sendNotification = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }
@@ -118,7 +118,7 @@ exports.sendNotification = onCall(async (request) => {
 // ============================================================
 // envoyerNotifCommande - Send notification for order status changes
 // ============================================================
-exports.envoyerNotifCommande = onCall(async (request) => {
+exports.envoyerNotifCommande = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }
@@ -313,7 +313,7 @@ async function envoyerNotifUtilisateur(userId, titre, message, data) {
 // ============================================================
 // markNotificationRead - Mark a notification as read
 // ============================================================
-exports.markNotificationRead = onCall(async (request) => {
+exports.markNotificationRead = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }

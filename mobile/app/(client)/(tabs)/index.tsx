@@ -13,26 +13,28 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Map from '../../components/Map';
-import Button from '../../components/Button';
-import AddressInput from '../../components/AddressInput';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../../../services/firebase';
+import Map from '../../../components/Map';
+import Button from '../../../components/Button';
+import AddressInput from '../../../components/AddressInput';
 import {
   getCurrentPosition,
   requestLocationPermission,
   reverseGeocodePosition,
   Position,
-} from '../../services/location';
-import { COLIS_TYPES, ColisType, DEFAULT_MAP_REGION } from '../../constants/config';
-import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../constants/theme';
-import { getRouteInfo, RouteInfo } from '../../services/routing';
+} from '../../../services/location';
+import { COLIS_TYPES, ColisType, DEFAULT_MAP_REGION } from '../../../constants/config';
+import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../../constants/theme';
+import { getRouteInfo, RouteInfo } from '../../../services/routing';
 import {
   calculatePrice,
   TRAFFIC_SURCHARGE,
   MIN_DELIVERY_TIME,
-} from '../../services/pricing';
+} from '../../../services/pricing';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const MAP_HEIGHT = SCREEN_HEIGHT * 0.35;
+const MAP_HEIGHT = SCREEN_HEIGHT * 0.25;
 
 export default function ClientHomeScreen() {
   const router = useRouter();
@@ -47,6 +49,33 @@ export default function ClientHomeScreen() {
   const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
   const [trafficLevel, setTrafficLevel] = useState<string>('inconnu');
   const [loadingRoute, setLoadingRoute] = useState(false);
+  const [livreurs, setLivreurs] = useState<Array<{ id: string; position: Position; prenom: string; nom: string; vehicule?: string }>>([]);
+
+  // Subscribe to available livreurs with positions
+  useEffect(() => {
+    const q = query(
+      collection(db, 'users'),
+      where('role', '==', 'livreur'),
+      where('disponible', '==', true)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const drivers: typeof livreurs = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.position?.latitude && data.position?.longitude) {
+          drivers.push({
+            id: doc.id,
+            position: { latitude: data.position.latitude, longitude: data.position.longitude },
+            prenom: data.prenom || '',
+            nom: data.nom || '',
+            vehicule: data.vehicule,
+          });
+        }
+      });
+      setLivreurs(drivers);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -161,16 +190,34 @@ export default function ClientHomeScreen() {
       }
     : DEFAULT_MAP_REGION;
 
-  const mapMarkers = currentPosition
-    ? [
-        {
-          id: 'user',
-          coordinate: currentPosition,
-          title: 'Ma position',
-          color: Colors.secondary,
-        },
-      ]
-    : [];
+  const mapMarkers = [
+    ...(currentPosition
+      ? [
+          {
+            id: 'user',
+            coordinate: currentPosition,
+            title: 'Ma position',
+            color: Colors.secondary,
+          },
+        ]
+      : []),
+    ...livreurs.map((l) => {
+      const vehicleIcons: Record<string, string> = {
+        voiture: 'car',
+        scooter: 'bicycle',
+        velo: 'bicycle',
+        moto: 'bicycle',
+        camionnette: 'bus',
+      };
+      return {
+        id: `livreur-${l.id}`,
+        coordinate: l.position,
+        title: `${l.prenom} ${l.nom}`,
+        description: l.vehicule || 'Livreur',
+        icon: vehicleIcons[l.vehicule || ''] || 'car',
+      };
+    }),
+  ];
 
   return (
     <KeyboardAvoidingView
@@ -331,6 +378,16 @@ export default function ClientHomeScreen() {
           icon="send"
           style={styles.commanderButton}
         />
+
+        {/* Direct new order button */}
+        <TouchableOpacity
+          style={styles.newOrderDirect}
+          onPress={() => router.push('/(client)/nouvelle-commande')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add-circle-outline" size={20} color={Colors.secondary} />
+          <Text style={styles.newOrderDirectText}>Nouvelle commande sans estimation</Text>
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -485,5 +542,18 @@ const styles = StyleSheet.create({
   },
   commanderButton: {
     marginTop: Spacing.sm,
+  },
+  newOrderDirect: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  newOrderDirectText: {
+    fontSize: Typography.sizes.md,
+    color: Colors.secondary,
+    fontWeight: Typography.weights.medium,
   },
 });

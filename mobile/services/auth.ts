@@ -3,6 +3,9 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  GoogleAuthProvider,
+  signInWithCredential,
   User,
   UserCredential,
 } from 'firebase/auth';
@@ -55,22 +58,55 @@ export async function signUp(
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const user = userCredential.user;
 
-  const userProfile: Omit<UserProfile, 'uid'> & { uid: string } = {
+  // Build profile without undefined values (Firestore rejects undefined)
+  const userProfile: Record<string, unknown> = {
     uid: user.uid,
     email: email,
     nom: userData.nom,
     prenom: userData.prenom,
     telephone: userData.telephone,
     role: userData.role,
-    vehicule: userData.vehicule || undefined,
-    permis: userData.permis || undefined,
-    note: userData.role === 'livreur' ? 5 : undefined,
-    nombreLivraisons: userData.role === 'livreur' ? 0 : undefined,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
 
-  await setDoc(doc(db, 'users', user.uid), userProfile);
+  if (userData.vehicule) userProfile.vehicule = userData.vehicule;
+  if (userData.permis) userProfile.permis = userData.permis;
+  if (userData.role === 'livreur') {
+    userProfile.note = 5;
+    userProfile.nombreLivraisons = 0;
+  }
+
+  // Use merge to avoid overwriting data from onUserCreated Cloud Function
+  await setDoc(doc(db, 'users', user.uid), userProfile, { merge: true });
+
+  // Send email verification
+  await sendEmailVerification(user);
+
+  return userCredential;
+}
+
+/**
+ * Signs in with Google credential (ID token from Google Sign-In).
+ */
+export async function signInWithGoogle(idToken: string): Promise<UserCredential> {
+  const credential = GoogleAuthProvider.credential(idToken);
+  const userCredential = await signInWithCredential(auth, credential);
+  const user = userCredential.user;
+
+  // Create/merge profile on first Google sign-in
+  const userProfile: Record<string, unknown> = {
+    uid: user.uid,
+    email: user.email || '',
+    nom: user.displayName ? user.displayName.split(' ').slice(1).join(' ') : '',
+    prenom: user.displayName ? user.displayName.split(' ')[0] : '',
+    photoURL: user.photoURL || '',
+    role: 'client',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  await setDoc(doc(db, 'users', user.uid), userProfile, { merge: true });
 
   return userCredential;
 }

@@ -179,6 +179,14 @@ export default function SuiviScreen() {
     }
 
     if (livreur?.position) {
+      const vehicleIcons: Record<string, string> = {
+        voiture: 'car',
+        scooter: 'bicycle',
+        velo: 'bicycle',
+        moto: 'bicycle',
+        camionnette: 'bus',
+        utilitaire: 'bus',
+      };
       markers.push({
         id: 'livreur',
         coordinate: {
@@ -187,7 +195,7 @@ export default function SuiviScreen() {
         },
         title: `${livreur.prenom} ${livreur.nom}`,
         description: livreur.vehicule || 'Livreur',
-        color: Colors.accent,
+        icon: vehicleIcons[livreur.vehicule || ''] || 'car',
       });
     }
 
@@ -311,12 +319,13 @@ export default function SuiviScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      {/* Full Screen Map */}
+      {/* Full Screen Map - follows livreur position in real-time */}
       <View style={styles.mapContainer}>
         <Map
           initialRegion={getMapRegion()}
           markers={buildMarkers()}
           routeCoordinates={buildRouteCoordinates()}
+          followCoordinate={livreur?.position || null}
           style={styles.map}
         />
       </View>
@@ -404,6 +413,38 @@ export default function SuiviScreen() {
             style={styles.cancelButton}
           />
         )}
+
+        {/* New order button when cancelled */}
+        {order.status === 'annulee' && (
+          <View style={styles.cancelledCard}>
+            <Ionicons name="information-circle-outline" size={32} color={Colors.textLight} />
+            <Text style={styles.cancelledText}>
+              Cette commande a été annulée.
+            </Text>
+            <Button
+              title="Passer une nouvelle commande"
+              onPress={() => router.replace('/(client)/nouvelle-commande')}
+              icon="add-circle"
+              style={styles.newOrderButton}
+            />
+          </View>
+        )}
+
+        {/* New order button when delivered */}
+        {order.status === 'livree' && (
+          <View style={styles.cancelledCard}>
+            <Ionicons name="checkmark-circle" size={32} color={Colors.success} />
+            <Text style={styles.cancelledText}>
+              Commande livrée avec succès !
+            </Text>
+            <Button
+              title="Passer une nouvelle commande"
+              onPress={() => router.replace('/(client)/nouvelle-commande')}
+              icon="add-circle"
+              style={styles.newOrderButton}
+            />
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -447,7 +488,7 @@ const styles = StyleSheet.create({
     width: 40,
   },
   mapContainer: {
-    height: SCREEN_HEIGHT * 0.55,
+    height: SCREEN_HEIGHT * 0.75,
   },
   map: {
     width: '100%',
@@ -599,6 +640,23 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     marginTop: Spacing.sm,
+  },
+  cancelledCard: {
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    marginTop: Spacing.base,
+  },
+  cancelledText: {
+    fontSize: Typography.sizes.base,
+    color: Colors.textLight,
+    textAlign: 'center',
+    marginVertical: Spacing.md,
+  },
+  newOrderButton: {
+    marginTop: Spacing.sm,
+    minWidth: 250,
   },
   loadingContainer: {
     flex: 1,

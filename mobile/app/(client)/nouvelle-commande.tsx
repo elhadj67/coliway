@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,10 +15,13 @@ import { Ionicons } from '@expo/vector-icons';
 import Map from '../../components/Map';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
+import AddressInput from '../../components/AddressInput';
 import { createOrder, OrderData } from '../../services/orders';
 import { useAuth } from '../../hooks/useAuth';
 import { COLIS_TYPES, ColisType, DEFAULT_MAP_REGION } from '../../constants/config';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../constants/theme';
+import { getRouteInfo } from '../../services/routing';
+import { calculatePrice, TRAFFIC_SURCHARGE, MIN_DELIVERY_TIME } from '../../services/pricing';
 
 const TOTAL_STEPS = 4;
 
@@ -26,21 +29,19 @@ export default function NouvelleCommandeScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const params = useLocalSearchParams<{
-    adresseDepart: string;
-    adresseArrivee: string;
-    typeColis: string;
-    prixEstime: string;
-    distance: string;
-    departLat: string;
-    departLng: string;
-    arriveeLat: string;
-    arriveeLng: string;
+    adresseDepart?: string;
+    adresseArrivee?: string;
+    typeColis?: string;
+    prixEstime?: string;
+    distance?: string;
+    departLat?: string;
+    departLng?: string;
+    arriveeLat?: string;
+    arriveeLng?: string;
   }>();
 
-  const departLat = parseFloat(params.departLat) || DEFAULT_MAP_REGION.latitude;
-  const departLng = parseFloat(params.departLng) || DEFAULT_MAP_REGION.longitude;
-  const arriveeLat = parseFloat(params.arriveeLat) || DEFAULT_MAP_REGION.latitude + 0.01;
-  const arriveeLng = parseFloat(params.arriveeLng) || DEFAULT_MAP_REGION.longitude + 0.01;
+  // Check if we have pre-filled params from the home screen
+  const hasParams = !!(params.departLat && params.arriveeLat);
 
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -50,14 +51,21 @@ export default function NouvelleCommandeScreen() {
   // Step 1: Addresses
   const [adresseDepart, setAdresseDepart] = useState(params.adresseDepart || '');
   const [adresseArrivee, setAdresseArrivee] = useState(params.adresseArrivee || '');
+  const [departCoords, setDepartCoords] = useState<{ latitude: number; longitude: number } | null>(
+    hasParams
+      ? { latitude: parseFloat(params.departLat!), longitude: parseFloat(params.departLng!) }
+      : null
+  );
+  const [arriveeCoords, setArriveeCoords] = useState<{ latitude: number; longitude: number } | null>(
+    hasParams
+      ? { latitude: parseFloat(params.arriveeLat!), longitude: parseFloat(params.arriveeLng!) }
+      : null
+  );
 
   // Step 2: Colis details
   const initialColis = COLIS_TYPES.find((t) => t.id === params.typeColis) || COLIS_TYPES[1];
   const [selectedColis, setSelectedColis] = useState<ColisType>(initialColis);
   const [poids, setPoids] = useState('');
-  const [longueur, setLongueur] = useState('');
-  const [largeur, setLargeur] = useState('');
-  const [hauteur, setHauteur] = useState('');
   const [description, setDescription] = useState('');
   const [destinataireNom, setDestinataireNom] = useState('');
   const [destinataireTelephone, setDestinataireTelephone] = useState('');
@@ -65,12 +73,61 @@ export default function NouvelleCommandeScreen() {
 
   // Step 3: Payment
   const [paymentMethod, setPaymentMethod] = useState<'carte' | 'paypal'>('carte');
-  const prixEstime = parseFloat(params.prixEstime || '0');
+
+  // Price estimation (calculated on the fly)
+  const [estimatedPrice, setEstimatedPrice] = useState<number>(parseFloat(params.prixEstime || '0'));
+  const [estimatedDistance, setEstimatedDistance] = useState<number | null>(null);
+  const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
+  const [trafficLevel, setTrafficLevel] = useState<string>('inconnu');
+  const [loadingRoute, setLoadingRoute] = useState(false);
+
+  // Calculate route & price when both coordinates are set
+  useEffect(() => {
+    if (!departCoords || !arriveeCoords) return;
+    // Skip if we already have a price from params
+    if (hasParams && estimatedPrice > 0) return;
+
+    let cancelled = false;
+    setLoadingRoute(true);
+
+    (async () => {
+      try {
+        const route = await getRouteInfo(departCoords, arriveeCoords);
+        if (cancelled) return;
+
+        setEstimatedDistance(route.distanceKm);
+        const totalTime = Math.max(route.durationTrafficMin, MIN_DELIVERY_TIME);
+        setEstimatedTime(totalTime);
+        setTrafficLevel(route.trafficLevel);
+
+        const basePrice = calculatePrice(route.distanceKm, selectedColis.id);
+        const surcharge = TRAFFIC_SURCHARGE[route.trafficLevel] || 1.0;
+        setEstimatedPrice(Math.round(basePrice * surcharge * 100) / 100);
+      } catch {
+        if (!cancelled) {
+          // Fallback: estimate price from straight-line distance
+          const dLat = departCoords.latitude - arriveeCoords.latitude;
+          const dLng = departCoords.longitude - arriveeCoords.longitude;
+          const approxKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111;
+          setEstimatedDistance(Math.round(approxKm * 10) / 10);
+          setEstimatedPrice(calculatePrice(approxKm, selectedColis.id));
+        }
+      } finally {
+        if (!cancelled) setLoadingRoute(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [departCoords, arriveeCoords, selectedColis]);
 
   const handleNext = () => {
     if (currentStep === 1) {
       if (!adresseDepart.trim() || !adresseArrivee.trim()) {
         Alert.alert('Erreur', 'Veuillez remplir les deux adresses.');
+        return;
+      }
+      if (!departCoords || !arriveeCoords) {
+        Alert.alert('Erreur', 'Veuillez sélectionner des adresses dans la liste de suggestions pour obtenir les coordonnées.');
         return;
       }
     }
@@ -79,8 +136,48 @@ export default function NouvelleCommandeScreen() {
         Alert.alert('Erreur', 'Veuillez indiquer le poids du colis.');
         return;
       }
-      if (!destinataireNom.trim() || !destinataireTelephone.trim()) {
-        Alert.alert('Erreur', 'Veuillez remplir les informations du destinataire.');
+      const poidsNum = parseFloat(poids.replace(',', '.'));
+      if (isNaN(poidsNum) || poidsNum <= 0) {
+        Alert.alert('Erreur', 'Veuillez saisir un poids valide.');
+        return;
+      }
+      if (poidsNum > selectedColis.poidsMax) {
+        Alert.alert(
+          'Poids dépassé',
+          `Le poids maximum pour "${selectedColis.label}" est de ${selectedColis.poidsMax} kg. Votre colis pèse ${poidsNum} kg.\n\nVeuillez réduire le poids ou choisir un type de colis plus grand.`
+        );
+        return;
+      }
+      if (!destinataireNom.trim()) {
+        Alert.alert('Erreur', 'Veuillez remplir le nom du destinataire.');
+        return;
+      }
+      if (!destinataireTelephone.trim()) {
+        Alert.alert('Erreur', 'Veuillez remplir le téléphone du destinataire.');
+        return;
+      }
+      // Validate phone number format
+      const phoneDigits = destinataireTelephone.replace(/[\s.\-()]/g, '');
+      if (phoneDigits.startsWith('+33')) {
+        if (phoneDigits.length !== 12) {
+          Alert.alert('Téléphone invalide', `Le numéro contient ${phoneDigits.length - 1}/11 chiffres attendus (format +33XXXXXXXXX).`);
+          return;
+        }
+        if (!/^\+33[1-9]\d{8}$/.test(phoneDigits)) {
+          Alert.alert('Téléphone invalide', 'Format incorrect (ex: +33612345678).');
+          return;
+        }
+      } else if (phoneDigits.startsWith('0')) {
+        if (phoneDigits.length !== 10) {
+          Alert.alert('Téléphone invalide', `Le numéro contient ${phoneDigits.length}/10 chiffres attendus.`);
+          return;
+        }
+        if (!/^0[1-9]\d{8}$/.test(phoneDigits)) {
+          Alert.alert('Téléphone invalide', 'Format incorrect (ex: 0612345678).');
+          return;
+        }
+      } else {
+        Alert.alert('Téléphone invalide', 'Le numéro doit commencer par 0 ou +33.');
         return;
       }
     }
@@ -100,29 +197,33 @@ export default function NouvelleCommandeScreen() {
       Alert.alert('Erreur', 'Vous devez être connecté pour passer une commande.');
       return;
     }
+    if (!departCoords || !arriveeCoords) {
+      Alert.alert('Erreur', 'Coordonnées manquantes. Revenez à l\'étape 1.');
+      return;
+    }
 
     setLoading(true);
     try {
       const orderData: OrderData = {
         clientId: user.uid,
         typeColis: selectedColis.id,
-        poids: parseFloat(poids) || 0,
-        description: description || `${selectedColis.label} - ${longueur}x${largeur}x${hauteur} cm`,
+        poids: parseFloat(poids.replace(',', '.')) || 0,
+        description: description || `${selectedColis.label} - ${poids || '0'} kg`,
         adresseEnlevement: {
           adresse: adresseDepart,
-          latitude: departLat,
-          longitude: departLng,
+          latitude: departCoords.latitude,
+          longitude: departCoords.longitude,
         },
         adresseLivraison: {
           adresse: adresseArrivee,
-          latitude: arriveeLat,
-          longitude: arriveeLng,
+          latitude: arriveeCoords.latitude,
+          longitude: arriveeCoords.longitude,
         },
         destinataireNom,
         destinataireTelephone,
-        instructions: instructions || undefined,
+        instructions: instructions || '',
         assurance: false,
-        prixEstime,
+        prixEstime: estimatedPrice,
       };
 
       const orderId = await createOrder(orderData);
@@ -130,8 +231,8 @@ export default function NouvelleCommandeScreen() {
       setOrderCreated(true);
       setCurrentStep(4);
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de créer la commande. Veuillez réessayer.');
       console.error('Error creating order:', error);
+      Alert.alert('Erreur', 'Impossible de créer la commande. Veuillez réessayer.');
     } finally {
       setLoading(false);
     }
@@ -199,56 +300,92 @@ export default function NouvelleCommandeScreen() {
 
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Confirmez les adresses</Text>
+      <Text style={styles.stepTitle}>Adresses de livraison</Text>
 
-      {/* Mini Map Preview */}
-      <View style={styles.miniMapContainer}>
-        <Map
-          initialRegion={{
-            latitude: (departLat + arriveeLat) / 2,
-            longitude: (departLng + arriveeLng) / 2,
-            latitudeDelta: Math.abs(departLat - arriveeLat) * 2 + 0.01,
-            longitudeDelta: Math.abs(departLng - arriveeLng) * 2 + 0.01,
+      {/* Mini Map Preview when we have coordinates */}
+      {departCoords && arriveeCoords && (
+        <View style={styles.miniMapContainer}>
+          <Map
+            initialRegion={{
+              latitude: (departCoords.latitude + arriveeCoords.latitude) / 2,
+              longitude: (departCoords.longitude + arriveeCoords.longitude) / 2,
+              latitudeDelta: Math.abs(departCoords.latitude - arriveeCoords.latitude) * 2 + 0.01,
+              longitudeDelta: Math.abs(departCoords.longitude - arriveeCoords.longitude) * 2 + 0.01,
+            }}
+            markers={[
+              {
+                id: 'depart',
+                coordinate: departCoords,
+                title: 'Départ',
+                color: Colors.secondary,
+              },
+              {
+                id: 'arrivee',
+                coordinate: arriveeCoords,
+                title: 'Arrivée',
+                color: Colors.success,
+              },
+            ]}
+            style={styles.miniMap}
+          />
+        </View>
+      )}
+
+      <View style={styles.addressSection}>
+        <AddressInput
+          placeholder="Adresse de départ"
+          icon="location"
+          value={adresseDepart}
+          onAddressSelect={(address, lat, lng) => {
+            setAdresseDepart(address);
+            setDepartCoords({ latitude: lat, longitude: lng });
           }}
-          markers={[
-            {
-              id: 'depart',
-              coordinate: {
-                latitude: departLat,
-                longitude: departLng,
-              },
-              title: 'Départ',
-              color: Colors.secondary,
-            },
-            {
-              id: 'arrivee',
-              coordinate: {
-                latitude: arriveeLat,
-                longitude: arriveeLng,
-              },
-              title: 'Arrivée',
-              color: Colors.success,
-            },
-          ]}
-          style={styles.miniMap}
+        />
+
+        <View style={styles.arrowContainer}>
+          <Ionicons name="arrow-down" size={20} color={Colors.secondary} />
+        </View>
+
+        <AddressInput
+          placeholder="Adresse d'arrivée"
+          icon="navigate"
+          value={adresseArrivee}
+          onAddressSelect={(address, lat, lng) => {
+            setAdresseArrivee(address);
+            setArriveeCoords({ latitude: lat, longitude: lng });
+          }}
         />
       </View>
 
-      <Input
-        label="Adresse de départ"
-        value={adresseDepart}
-        onChangeText={setAdresseDepart}
-        placeholder="Adresse d'enlèvement"
-        icon="location"
-      />
-
-      <Input
-        label="Adresse d'arrivée"
-        value={adresseArrivee}
-        onChangeText={setAdresseArrivee}
-        placeholder="Adresse de livraison"
-        icon="navigate"
-      />
+      {/* Price estimate preview */}
+      {loadingRoute && (
+        <View style={styles.routeInfo}>
+          <ActivityIndicator size="small" color={Colors.secondary} />
+          <Text style={styles.routeInfoText}>Calcul du trajet...</Text>
+        </View>
+      )}
+      {!loadingRoute && estimatedPrice > 0 && (
+        <View style={styles.routeInfo}>
+          {estimatedDistance && (
+            <View style={styles.routeDetail}>
+              <Ionicons name="speedometer-outline" size={16} color={Colors.textLight} />
+              <Text style={styles.routeInfoText}>{estimatedDistance} km</Text>
+            </View>
+          )}
+          {estimatedTime && (
+            <View style={styles.routeDetail}>
+              <Ionicons name="time-outline" size={16} color={Colors.textLight} />
+              <Text style={styles.routeInfoText}>~{estimatedTime} min</Text>
+            </View>
+          )}
+          <View style={styles.routeDetail}>
+            <Ionicons name="pricetag-outline" size={16} color={Colors.primary} />
+            <Text style={[styles.routeInfoText, { color: Colors.primary, fontWeight: Typography.weights.bold }]}>
+              {estimatedPrice.toFixed(2)} €
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 
@@ -270,7 +407,10 @@ export default function NouvelleCommandeScreen() {
               styles.colisTypeChip,
               selectedColis.id === type.id && styles.colisTypeChipSelected,
             ]}
-            onPress={() => setSelectedColis(type)}
+            onPress={() => {
+              setSelectedColis(type);
+              setPoids('');
+            }}
             activeOpacity={0.7}
           >
             <Ionicons
@@ -290,48 +430,30 @@ export default function NouvelleCommandeScreen() {
         ))}
       </ScrollView>
 
+      {/* Conditions card */}
+      <View style={styles.conditionsCard}>
+        <View style={styles.conditionsHeader}>
+          <Ionicons name="information-circle" size={20} color={Colors.secondary} />
+          <Text style={styles.conditionsTitle}>
+            Conditions — {selectedColis.label}
+          </Text>
+        </View>
+        {selectedColis.conditions.map((condition, index) => (
+          <View key={index} style={styles.conditionRow}>
+            <Ionicons name="checkmark-circle-outline" size={16} color={Colors.success} />
+            <Text style={styles.conditionText}>{condition}</Text>
+          </View>
+        ))}
+      </View>
+
       <Input
-        label="Poids (kg)"
+        label={`Poids (kg) — max ${selectedColis.poidsMax} kg`}
         value={poids}
         onChangeText={setPoids}
-        placeholder="Ex: 2.5"
+        placeholder={`Ex: ${Math.min(selectedColis.poidsMax, 2.5)}`}
         keyboardType="numeric"
         icon="scale-outline"
       />
-
-      {/* Dimensions */}
-      <Text style={styles.fieldLabel}>Dimensions (cm)</Text>
-      <View style={styles.dimensionsRow}>
-        <View style={styles.dimensionInput}>
-          <Input
-            label="L"
-            value={longueur}
-            onChangeText={setLongueur}
-            placeholder="30"
-            keyboardType="numeric"
-          />
-        </View>
-        <Text style={styles.dimensionSeparator}>x</Text>
-        <View style={styles.dimensionInput}>
-          <Input
-            label="l"
-            value={largeur}
-            onChangeText={setLargeur}
-            placeholder="20"
-            keyboardType="numeric"
-          />
-        </View>
-        <Text style={styles.dimensionSeparator}>x</Text>
-        <View style={styles.dimensionInput}>
-          <Input
-            label="H"
-            value={hauteur}
-            onChangeText={setHauteur}
-            placeholder="15"
-            keyboardType="numeric"
-          />
-        </View>
-      </View>
 
       <Input
         label="Description"
@@ -419,11 +541,19 @@ export default function NouvelleCommandeScreen() {
           </View>
         ) : null}
 
+        <View style={styles.summaryRow}>
+          <Ionicons name="person-outline" size={18} color={Colors.textLight} />
+          <View style={styles.summaryTextContainer}>
+            <Text style={styles.summaryLabel}>Destinataire</Text>
+            <Text style={styles.summaryValue}>{destinataireNom} — {destinataireTelephone}</Text>
+          </View>
+        </View>
+
         <View style={styles.summaryDivider} />
 
         <View style={styles.summaryPriceRow}>
           <Text style={styles.summaryPriceLabel}>Total estimé</Text>
-          <Text style={styles.summaryPriceValue}>{prixEstime.toFixed(2)} €</Text>
+          <Text style={styles.summaryPriceValue}>{estimatedPrice.toFixed(2)} €</Text>
         </View>
       </View>
 
@@ -538,10 +668,10 @@ export default function NouvelleCommandeScreen() {
           <Ionicons name="shield-checkmark" size={48} color={Colors.primary} />
           <Text style={styles.confirmTitle}>Confirmer votre commande</Text>
           <Text style={styles.confirmSubtitle}>
-            En confirmant, vous acceptez de payer {prixEstime.toFixed(2)} € pour cette livraison.
+            En confirmant, vous acceptez de payer {estimatedPrice.toFixed(2)} € pour cette livraison.
           </Text>
           <Button
-            title={`Confirmer et payer ${prixEstime.toFixed(2)} €`}
+            title={`Confirmer et payer ${estimatedPrice.toFixed(2)} €`}
             onPress={handleConfirmOrder}
             icon="lock-closed"
             loading={loading}
@@ -593,7 +723,8 @@ export default function NouvelleCommandeScreen() {
         style={styles.scrollContent}
         contentContainerStyle={styles.scrollContentInner}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
+        nestedScrollEnabled
       >
         {renderCurrentStep()}
       </ScrollView>
@@ -633,8 +764,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.base,
-    paddingTop: Spacing.xxxl,
-    paddingBottom: Spacing.md,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.sm,
     backgroundColor: Colors.white,
     ...Shadows.card,
   },
@@ -714,7 +845,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContentInner: {
-    padding: Spacing.xl,
+    padding: Spacing.base,
     paddingBottom: 120,
   },
   stepContainer: {
@@ -726,6 +857,13 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     marginBottom: Spacing.lg,
   },
+  addressSection: {
+    zIndex: 999,
+  },
+  arrowContainer: {
+    alignItems: 'center',
+    marginVertical: Spacing.xs,
+  },
   miniMapContainer: {
     height: 150,
     borderRadius: BorderRadius.lg,
@@ -736,6 +874,26 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: BorderRadius.lg,
+  },
+  routeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginTop: Spacing.base,
+    gap: Spacing.base,
+    ...Shadows.card,
+  },
+  routeDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  routeInfoText: {
+    fontSize: Typography.sizes.md,
+    color: Colors.textLight,
   },
   fieldLabel: {
     fontSize: Typography.sizes.md,
@@ -772,19 +930,35 @@ const styles = StyleSheet.create({
   colisTypeChipLabelSelected: {
     color: Colors.white,
   },
-  dimensionsRow: {
+  conditionsCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.base,
+    marginBottom: Spacing.base,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  conditionsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
-  dimensionInput: {
+  conditionsTitle: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.secondary,
+  },
+  conditionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: 4,
+  },
+  conditionText: {
+    fontSize: Typography.sizes.md,
+    color: Colors.text,
     flex: 1,
-  },
-  dimensionSeparator: {
-    fontSize: Typography.sizes.lg,
-    color: Colors.textLight,
-    fontWeight: Typography.weights.bold,
-    marginTop: Spacing.md,
   },
   summaryCard: {
     backgroundColor: Colors.white,

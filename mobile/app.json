@@ -37,6 +37,7 @@
           "apiKey": "AIzaSyBmB58zih7ICTRrycl1bVfB_OybotqKxW4"
         }
       },
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -49,7 +50,8 @@
       "expo-notifications",
       "expo-image-picker",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      "@react-native-google-signin/google-signin"
     ]
   }
 }

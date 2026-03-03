@@ -509,6 +509,44 @@ La reglementation etant susceptible d'evoluer, il est indispensable de mettre a 
 
 ---
 
+## Politique de securite des mots de passe
+
+### Norme appliquee
+
+La politique de mots de passe de Coliway est conforme aux recommandations de l'**ANSSI** (Agence nationale de la securite des systemes d'information), publiees dans le guide :
+
+> **"Recommandations relatives a l'authentification multifacteur et aux mots de passe"** (octobre 2021)
+> Reference : ANSSI-PA-093
+> https://www.ssi.gouv.fr/guide/recommandations-relatives-a-lauthentification-multifacteur-et-aux-mots-de-passe/
+
+### Regles implementees (entropie forte)
+
+Tout mot de passe utilisateur doit respecter les criteres suivants :
+
+| Critere                     | Exigence                                |
+|-----------------------------|-----------------------------------------|
+| Longueur minimale           | 8 caracteres                            |
+| Lettre majuscule            | Au moins 1 (A-Z)                        |
+| Lettre minuscule            | Au moins 1 (a-z)                        |
+| Chiffre                     | Au moins 1 (0-9)                        |
+| Caractere special           | Au moins 1 (!@#$%^&*()_+-= etc.)       |
+| Longueur maximale           | 64 caracteres (recommandation ANSSI)    |
+
+### Mesures complementaires
+
+- **Limitation des tentatives** : Firebase Authentication applique un verrouillage temporaire apres plusieurs echecs consecutifs (protection anti-brute-force).
+- **Stockage** : Les mots de passe sont haches par Firebase Authentication (bcrypt/scrypt) et ne sont jamais stockes en clair.
+- **Transmission** : Toutes les communications utilisent TLS 1.2+.
+- **Reinitialisation** : Disponible par email via `sendPasswordResetEmail()`.
+
+### Fichiers concernes
+
+- `mobile/app/(auth)/register.tsx` : Validation cote client (formulaire d'inscription)
+- `mobile/services/auth.ts` : Appel Firebase Auth `createUserWithEmailAndPassword()`
+- Firebase Authentication : Validation cote serveur
+
+---
+
 **COLIWAY SAS**
 15 Rue de la Paix, 75002 Paris, France
 SIRET : [123 456 789 00010 -- a completer]
@@ -516,4 +554,4 @@ contact@coliway.fr
 
 ---
 
-*Le present Guide de Conformite Reglementaire a ete redige le 1er mars 2026.*
+*Le present Guide de Conformite Reglementaire a ete redige le 1er mars 2026. Mis a jour le 3 mars 2026.*

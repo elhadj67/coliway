@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography } from '../../constants/theme';
+import { Colors, Spacing, Typography } from '../../../constants/theme';
 
 export default function MessagesScreen() {
   return (

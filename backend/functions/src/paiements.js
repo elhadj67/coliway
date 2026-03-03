@@ -14,7 +14,7 @@ const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
 // createPaymentIntent - Creates a Stripe PaymentIntent
 // ============================================================
 exports.createPaymentIntent = onCall(
-  { secrets: [stripeSecretKey] },
+  { secrets: [stripeSecretKey], region: "europe-west1" },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
@@ -224,14 +224,14 @@ async function handlePaymentFailure(paymentIntent) {
 }
 
 exports.stripeWebhook = onRequest(
-  { secrets: [stripeSecretKey, stripeWebhookSecret] },
+  { secrets: [stripeSecretKey, stripeWebhookSecret], region: "europe-west1" },
   webhookApp
 );
 
 // ============================================================
 // createPaypalOrder - Placeholder for PayPal order creation
 // ============================================================
-exports.createPaypalOrder = onCall(async (request) => {
+exports.createPaypalOrder = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }
@@ -297,7 +297,7 @@ exports.createPaypalOrder = onCall(async (request) => {
 // ============================================================
 // capturePaypalOrder - Placeholder for PayPal payment capture
 // ============================================================
-exports.capturePaypalOrder = onCall(async (request) => {
+exports.capturePaypalOrder = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }

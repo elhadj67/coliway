@@ -7,23 +7,29 @@ const db = admin.firestore();
 // ============================================================
 // onUserCreated - Auth trigger: new user created
 // ============================================================
-exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
+exports.onUserCreated = functions.region("europe-west1").auth.user().onCreate(async (user) => {
   logger.info("Nouvel utilisateur cree:", user.uid, user.email);
 
   try {
+    // Use merge to avoid overwriting data already written by the client
     const userData = {
       uid: user.uid,
       email: user.email || "",
-      nom: user.displayName ? user.displayName.split(" ").slice(1).join(" ") : "",
-      prenom: user.displayName ? user.displayName.split(" ")[0] : "",
-      telephone: user.phoneNumber || "",
-      role: "client",
-      photoURL: user.photoURL || "",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      verified: false,
     };
 
-    await db.collection("users").doc(user.uid).set(userData);
+    // Only set defaults if the client hasn't written them yet
+    const existingDoc = await db.collection("users").doc(user.uid).get();
+    if (!existingDoc.exists) {
+      userData.nom = user.displayName ? user.displayName.split(" ").slice(1).join(" ") : "";
+      userData.prenom = user.displayName ? user.displayName.split(" ")[0] : "";
+      userData.telephone = user.phoneNumber || "";
+      userData.role = "client";
+      userData.photoURL = user.photoURL || "";
+      userData.verified = false;
+    }
+
+    await db.collection("users").doc(user.uid).set(userData, { merge: true });
     logger.info("Document utilisateur cree avec succes pour:", user.uid);
 
     return { success: true };
@@ -36,7 +42,7 @@ exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
 // ============================================================
 // onUserDeleted - Auth trigger: user deleted
 // ============================================================
-exports.onUserDeleted = functions.auth.user().onDelete(async (user) => {
+exports.onUserDeleted = functions.region("europe-west1").auth.user().onDelete(async (user) => {
   logger.info("Utilisateur supprime:", user.uid, user.email);
 
   const batch = db.batch();

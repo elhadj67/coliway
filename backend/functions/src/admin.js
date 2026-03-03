@@ -33,7 +33,7 @@ async function verifyAdmin(auth) {
 // ============================================================
 // getStats - Dashboard statistics
 // ============================================================
-exports.getStats = onCall(async (request) => {
+exports.getStats = onCall({ region: "europe-west1" }, async (request) => {
   await verifyAdmin(request.auth);
 
   try {
@@ -103,7 +103,7 @@ exports.getStats = onCall(async (request) => {
 // ============================================================
 // validerLivreur - Approve or refuse a livreur
 // ============================================================
-exports.validerLivreur = onCall(async (request) => {
+exports.validerLivreur = onCall({ region: "europe-west1" }, async (request) => {
   await verifyAdmin(request.auth);
 
   const { livreurId, decision, motif } = request.data;
@@ -178,7 +178,7 @@ exports.validerLivreur = onCall(async (request) => {
 // ============================================================
 // updatePrixConfig - Update pricing config for a colis type
 // ============================================================
-exports.updatePrixConfig = onCall(async (request) => {
+exports.updatePrixConfig = onCall({ region: "europe-west1" }, async (request) => {
   await verifyAdmin(request.auth);
 
   const { colis_type, prix_base, prix_par_km, prix_minimum } = request.data;
@@ -234,7 +234,7 @@ exports.updatePrixConfig = onCall(async (request) => {
 // ============================================================
 // getAllPrixConfig - Get all pricing configurations
 // ============================================================
-exports.getAllPrixConfig = onCall(async (request) => {
+exports.getAllPrixConfig = onCall({ region: "europe-west1" }, async (request) => {
   await verifyAdmin(request.auth);
 
   try {
@@ -256,7 +256,7 @@ exports.getAllPrixConfig = onCall(async (request) => {
 // ============================================================
 // getListeUtilisateurs - Get paginated list of users
 // ============================================================
-exports.getListeUtilisateurs = onCall(async (request) => {
+exports.getListeUtilisateurs = onCall({ region: "europe-west1" }, async (request) => {
   await verifyAdmin(request.auth);
 
   const {
@@ -322,7 +322,7 @@ exports.getListeUtilisateurs = onCall(async (request) => {
 // ============================================================
 // exportCommandes - Export commandes data as JSON
 // ============================================================
-exports.exportCommandes = onCall(async (request) => {
+exports.exportCommandes = onCall({ region: "europe-west1" }, async (request) => {
   await verifyAdmin(request.auth);
 
   const {

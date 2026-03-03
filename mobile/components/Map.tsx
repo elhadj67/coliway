@@ -1,11 +1,12 @@
-import React from 'react';
-import { StyleSheet, ViewStyle } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { StyleSheet, View, ViewStyle } from 'react-native';
 import MapView, {
   Marker,
   Polyline,
   Region,
   PROVIDER_GOOGLE,
 } from 'react-native-maps';
+import { Ionicons } from '@expo/vector-icons';
 
 const COLORS = {
   primary: '#1B3A5C',
@@ -23,6 +24,7 @@ interface MapMarker {
   title?: string;
   description?: string;
   color?: string;
+  icon?: string;
 }
 
 interface MapProps {
@@ -32,6 +34,7 @@ interface MapProps {
   showUserLocation?: boolean;
   routeCoordinates?: Coordinate[];
   style?: ViewStyle;
+  followCoordinate?: Coordinate | null;
 }
 
 const DEFAULT_REGION: Region = {
@@ -48,9 +51,28 @@ const Map: React.FC<MapProps> = ({
   showUserLocation = false,
   routeCoordinates,
   style,
+  followCoordinate,
 }) => {
+  const mapRef = useRef<MapView>(null);
+
+  // Animate to followed coordinate when it changes
+  useEffect(() => {
+    if (followCoordinate && mapRef.current) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: followCoordinate.latitude,
+          longitude: followCoordinate.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        },
+        800
+      );
+    }
+  }, [followCoordinate?.latitude, followCoordinate?.longitude]);
+
   return (
     <MapView
+      ref={mapRef}
       style={[styles.map, style]}
       provider={PROVIDER_GOOGLE}
       initialRegion={initialRegion}
@@ -60,15 +82,32 @@ const Map: React.FC<MapProps> = ({
       showsCompass
       showsScale
     >
-      {markers.map((marker) => (
-        <Marker
-          key={marker.id}
-          coordinate={marker.coordinate}
-          title={marker.title}
-          description={marker.description}
-          pinColor={marker.color || COLORS.primary}
-        />
-      ))}
+      {markers.map((marker) =>
+        marker.icon ? (
+          <Marker
+            key={marker.id}
+            coordinate={marker.coordinate}
+            title={marker.title}
+            description={marker.description}
+          >
+            <View style={styles.customMarker}>
+              <Ionicons
+                name={marker.icon as keyof typeof Ionicons.glyphMap}
+                size={22}
+                color="#fff"
+              />
+            </View>
+          </Marker>
+        ) : (
+          <Marker
+            key={marker.id}
+            coordinate={marker.coordinate}
+            title={marker.title}
+            description={marker.description}
+            pinColor={marker.color || COLORS.primary}
+          />
+        )
+      )}
       {routeCoordinates && routeCoordinates.length > 1 && (
         <Polyline
           coordinates={routeCoordinates}
@@ -86,6 +125,18 @@ const styles = StyleSheet.create({
     height: 300,
     borderRadius: 12,
     overflow: 'hidden',
+  },
+  customMarker: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 20,
+    padding: 8,
+    borderWidth: 2,
+    borderColor: '#fff',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
   },
 });
 

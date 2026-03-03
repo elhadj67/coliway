@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "553047283159",
+    "project_id": "coliway-app",
+    "storage_bucket": "coliway-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:553047283159:android:649369d636cfbecd722792",
+        "android_client_info": {
+          "package_name": "com.coliway.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "553047283159-2vmqo2gp6vge9semd3fjpq6l0lsb1f58.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.coliway.app",
+            "certificate_hash": "704277b66f99d92a4b15b158bcb4d11e4f42bc64"
+          }
+        },
+        {
+          "client_id": "553047283159-vc4u3l43451agmapq90q6nscb5d8i8ro.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYJOzXr_bhON0QPg5zD2X8Lz2ql7bAg64"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "553047283159-vc4u3l43451agmapq90q6nscb5d8i8ro.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

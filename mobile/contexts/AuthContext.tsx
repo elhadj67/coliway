@@ -6,6 +6,7 @@ import {
   signIn as authSignIn,
   signOut as authSignOut,
   resetPassword as authResetPassword,
+  signInWithGoogle as authSignInWithGoogle,
   getUserProfile,
   UserProfile,
   SignUpData,
@@ -23,6 +24,7 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  signInWithGoogle: (idToken: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -69,41 +71,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Sign in with email and password
   const signIn = async (email: string, password: string): Promise<void> => {
-    setLoading(true);
-    try {
-      const credential = await authSignIn(email, password);
-      await fetchProfile(credential.user.uid);
-    } finally {
-      setLoading(false);
-    }
+    const credential = await authSignIn(email, password);
+    await fetchProfile(credential.user.uid);
   };
 
   // Sign up with full user data
   const signUp = async (data: SignUpData): Promise<void> => {
-    setLoading(true);
-    try {
-      const { email, password, ...userData } = data;
-      const credential = await authSignUp(email, password, userData);
-      await fetchProfile(credential.user.uid);
-    } finally {
-      setLoading(false);
-    }
+    const { email, password, ...userData } = data;
+    const credential = await authSignUp(email, password, userData);
+    await fetchProfile(credential.user.uid);
   };
 
   // Sign out the current user
   const signOut = async (): Promise<void> => {
-    setLoading(true);
-    try {
-      await authSignOut();
-      setProfile(null);
-    } finally {
-      setLoading(false);
-    }
+    await authSignOut();
+    setUser(null);
+    setProfile(null);
   };
 
   // Send a password reset email
   const resetPassword = async (email: string): Promise<void> => {
     await authResetPassword(email);
+  };
+
+  // Sign in with Google
+  const signInWithGoogle = async (idToken: string): Promise<void> => {
+    const credential = await authSignInWithGoogle(idToken);
+    await fetchProfile(credential.user.uid);
   };
 
   // Refresh the user profile from Firestore
@@ -129,6 +123,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signOut,
     resetPassword,
     refreshProfile,
+    signInWithGoogle,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

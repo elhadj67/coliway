@@ -7,7 +7,7 @@ const db = admin.firestore();
 // ============================================================
 // inscrireLivreur - Register as a livreur
 // ============================================================
-exports.inscrireLivreur = onCall(async (request) => {
+exports.inscrireLivreur = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }
@@ -85,7 +85,7 @@ exports.inscrireLivreur = onCall(async (request) => {
 // ============================================================
 // updatePosition - Update livreur's GeoPoint position
 // ============================================================
-exports.updatePosition = onCall(async (request) => {
+exports.updatePosition = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }
@@ -146,7 +146,7 @@ exports.updatePosition = onCall(async (request) => {
 // ============================================================
 // toggleDisponibilite - Toggle the disponible field
 // ============================================================
-exports.toggleDisponibilite = onCall(async (request) => {
+exports.toggleDisponibilite = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }
@@ -197,7 +197,7 @@ exports.toggleDisponibilite = onCall(async (request) => {
 // ============================================================
 // noterLivreur - Rate a livreur after delivery
 // ============================================================
-exports.noterLivreur = onCall(async (request) => {
+exports.noterLivreur = onCall({ region: "europe-west1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
   }
