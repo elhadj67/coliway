@@ -20,6 +20,7 @@ const mockCreateUserWithEmailAndPassword = jest.fn();
 const mockSignInWithEmailAndPassword = jest.fn();
 const mockFirebaseSignOut = jest.fn();
 const mockSendPasswordResetEmail = jest.fn();
+const mockSendEmailVerification = jest.fn();
 const mockOnAuthStateChanged = jest.fn();
 
 jest.mock('firebase/auth', () => ({
@@ -30,9 +31,13 @@ jest.mock('firebase/auth', () => ({
   signOut: (...args: unknown[]) => mockFirebaseSignOut(...args),
   sendPasswordResetEmail: (...args: unknown[]) =>
     mockSendPasswordResetEmail(...args),
+  sendEmailVerification: (...args: unknown[]) =>
+    mockSendEmailVerification(...args),
   onAuthStateChanged: (...args: unknown[]) =>
     mockOnAuthStateChanged(...args),
   getAuth: jest.fn(),
+  GoogleAuthProvider: { credential: jest.fn() },
+  signInWithCredential: jest.fn(),
 }));
 
 const mockDoc = jest.fn((_db: unknown, _col: string, _id: string) => ({

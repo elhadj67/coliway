@@ -36,5 +36,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Android build artifacts
+mobile/android/app/src/main/res/drawable-*/node_modules_*
+mobile/android/app/src/main/res/drawable-*/assets_logo.png
+mobile/android/app/src/main/res/raw/
+
+# Windows artifacts
+nul
+
 # Temp files
 setup-test-data.js

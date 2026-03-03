@@ -28,7 +28,7 @@ function HeaderAvatar() {
   return (
     <TouchableOpacity
       style={styles.headerAvatarButton}
-      onPress={() => router.push('/(client)/profile')}
+      onPress={() => router.push('/(client)/profil')}
     >
       {profile?.photoURL ? (
         <Image source={{ uri: profile.photoURL }} style={styles.headerAvatar} />

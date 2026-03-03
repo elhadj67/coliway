@@ -18,6 +18,7 @@ export const createUserWithEmailAndPassword = jest.fn();
 export const signInWithEmailAndPassword = jest.fn();
 export const signOut = jest.fn();
 export const sendPasswordResetEmail = jest.fn();
+export const sendEmailVerification = jest.fn();
 export const onAuthStateChanged = jest.fn((auth: any, callback: any) => {
   callback(null);
   return jest.fn();
@@ -51,8 +52,11 @@ jest.mock('firebase/auth', () => ({
   signInWithEmailAndPassword,
   signOut: signOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   onAuthStateChanged,
   getAuth: jest.fn(() => mockAuth),
+  GoogleAuthProvider: { credential: jest.fn() },
+  signInWithCredential: jest.fn(),
 }));
 
 jest.mock('firebase/firestore', () => ({

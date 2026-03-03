@@ -117,7 +117,7 @@ export default function SuiviScreen() {
   const handleContactLivreur = () => {
     if (orderId) {
       router.push({
-        pathname: '/(client)/messages',
+        pathname: '/(client)/(tabs)/messages',
         params: {
           orderId,
           livreurNom: livreur ? `${livreur.prenom} ${livreur.nom}` : 'Livreur',
