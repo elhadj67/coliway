@@ -11,7 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getClientOrders, Order } from '../../services/orders';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import {
   ORDER_STATUS,
   OrderStatus,

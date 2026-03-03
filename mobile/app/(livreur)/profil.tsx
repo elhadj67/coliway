@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { signOut, updateProfile } from '@/services/auth';
 
 const COLORS = {

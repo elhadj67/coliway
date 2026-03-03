@@ -12,8 +12,7 @@ import {
   Unsubscribe,
   Timestamp,
 } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from './firebase';
+import { db } from './firebase';
 import { OrderStatus } from '@/constants/config';
 
 export interface OrderAddress {
@@ -53,15 +52,24 @@ export interface Order extends OrderData {
 }
 
 /**
- * Creates a new order by calling the createCommande cloud function.
+ * Creates a new order directly in Firestore.
  */
 export async function createOrder(orderData: OrderData): Promise<string> {
-  const createCommande = httpsCallable<OrderData, { commandeId: string }>(
-    functions,
-    'createCommande'
-  );
-  const result = await createCommande(orderData);
-  return result.data.commandeId;
+  // Remove undefined fields - Firestore doesn't accept undefined values
+  const cleanData: Record<string, any> = {};
+  for (const [key, value] of Object.entries(orderData)) {
+    if (value !== undefined) {
+      cleanData[key] = value;
+    }
+  }
+
+  const docRef = await addDoc(collection(db, 'commandes'), {
+    ...cleanData,
+    status: 'en_attente' as OrderStatus,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
 }
 
 /**
@@ -133,31 +141,34 @@ export function getAvailableOrders(
 }
 
 /**
- * Accepts an order by calling the accepterCommande cloud function.
+ * Accepts an order by updating it directly in Firestore.
  */
 export async function acceptOrder(
   orderId: string,
   livreurId: string
 ): Promise<void> {
-  const accepterCommande = httpsCallable<
-    { commandeId: string; livreurId: string },
-    void
-  >(functions, 'accepterCommande');
-  await accepterCommande({ commandeId: orderId, livreurId });
+  const orderRef = doc(db, 'commandes', orderId);
+  await updateDoc(orderRef, {
+    livreurId,
+    status: 'acceptee' as OrderStatus,
+    acceptedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /**
- * Updates the status of an order by calling the updateCommandeStatus cloud function.
+ * Updates the status of an order directly in Firestore.
  */
 export async function updateOrderStatus(
   orderId: string,
   status: OrderStatus
 ): Promise<void> {
-  const updateCommandeStatus = httpsCallable<
-    { commandeId: string; status: OrderStatus },
-    void
-  >(functions, 'updateCommandeStatus');
-  await updateCommandeStatus({ commandeId: orderId, status });
+  const orderRef = doc(db, 'commandes', orderId);
+  await updateDoc(orderRef, {
+    status,
+    updatedAt: serverTimestamp(),
+    ...(status === 'livree' ? { deliveredAt: serverTimestamp() } : {}),
+  });
 }
 
 /**

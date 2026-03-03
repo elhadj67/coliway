@@ -16,7 +16,7 @@ import Map from '../../components/Map';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
 import { createOrder, OrderData } from '../../services/orders';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { COLIS_TYPES, ColisType, DEFAULT_MAP_REGION } from '../../constants/config';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../constants/theme';
 
@@ -31,7 +31,16 @@ export default function NouvelleCommandeScreen() {
     typeColis: string;
     prixEstime: string;
     distance: string;
+    departLat: string;
+    departLng: string;
+    arriveeLat: string;
+    arriveeLng: string;
   }>();
+
+  const departLat = parseFloat(params.departLat) || DEFAULT_MAP_REGION.latitude;
+  const departLng = parseFloat(params.departLng) || DEFAULT_MAP_REGION.longitude;
+  const arriveeLat = parseFloat(params.arriveeLat) || DEFAULT_MAP_REGION.latitude + 0.01;
+  const arriveeLng = parseFloat(params.arriveeLng) || DEFAULT_MAP_REGION.longitude + 0.01;
 
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -101,13 +110,13 @@ export default function NouvelleCommandeScreen() {
         description: description || `${selectedColis.label} - ${longueur}x${largeur}x${hauteur} cm`,
         adresseEnlevement: {
           adresse: adresseDepart,
-          latitude: DEFAULT_MAP_REGION.latitude,
-          longitude: DEFAULT_MAP_REGION.longitude,
+          latitude: departLat,
+          longitude: departLng,
         },
         adresseLivraison: {
           adresse: adresseArrivee,
-          latitude: DEFAULT_MAP_REGION.latitude + 0.01,
-          longitude: DEFAULT_MAP_REGION.longitude + 0.01,
+          latitude: arriveeLat,
+          longitude: arriveeLng,
         },
         destinataireNom,
         destinataireTelephone,
@@ -195,13 +204,18 @@ export default function NouvelleCommandeScreen() {
       {/* Mini Map Preview */}
       <View style={styles.miniMapContainer}>
         <Map
-          initialRegion={DEFAULT_MAP_REGION}
+          initialRegion={{
+            latitude: (departLat + arriveeLat) / 2,
+            longitude: (departLng + arriveeLng) / 2,
+            latitudeDelta: Math.abs(departLat - arriveeLat) * 2 + 0.01,
+            longitudeDelta: Math.abs(departLng - arriveeLng) * 2 + 0.01,
+          }}
           markers={[
             {
               id: 'depart',
               coordinate: {
-                latitude: DEFAULT_MAP_REGION.latitude,
-                longitude: DEFAULT_MAP_REGION.longitude,
+                latitude: departLat,
+                longitude: departLng,
               },
               title: 'Départ',
               color: Colors.secondary,
@@ -209,8 +223,8 @@ export default function NouvelleCommandeScreen() {
             {
               id: 'arrivee',
               coordinate: {
-                latitude: DEFAULT_MAP_REGION.latitude + 0.01,
-                longitude: DEFAULT_MAP_REGION.longitude + 0.01,
+                latitude: arriveeLat,
+                longitude: arriveeLng,
               },
               title: 'Arrivée',
               color: Colors.success,

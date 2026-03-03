@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Map from '@/components/Map';
 import Button from '@/components/Button';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from '@/hooks/useLocation';
 import {
   getAvailableOrders,

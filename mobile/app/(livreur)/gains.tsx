@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { getLivreurOrders, Order } from '@/services/orders';
 import { calculateDistance } from '@/services/location';
 import { Timestamp } from 'firebase/firestore';

@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { signOut, updateProfile as updateUserProfile } from '../../services/auth';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../constants/theme';
 

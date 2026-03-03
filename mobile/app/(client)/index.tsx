@@ -7,46 +7,115 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Map from '../../components/Map';
 import Button from '../../components/Button';
-import Input from '../../components/Input';
-import { getCurrentPosition, Position } from '../../services/location';
+import AddressInput from '../../components/AddressInput';
+import {
+  getCurrentPosition,
+  requestLocationPermission,
+  reverseGeocodePosition,
+  Position,
+} from '../../services/location';
 import { COLIS_TYPES, ColisType, DEFAULT_MAP_REGION } from '../../constants/config';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../constants/theme';
-import { calculateDistance } from '../../services/location';
+import { getRouteInfo, RouteInfo } from '../../services/routing';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const MAP_HEIGHT = SCREEN_HEIGHT * 0.6;
+const MAP_HEIGHT = SCREEN_HEIGHT * 0.35;
 
-// Base price per km in euros
-const BASE_PRICE = 2.5;
-const PRICE_PER_KM = 1.2;
+// Minimum delivery time in minutes (even for very short distances)
+const MIN_DELIVERY_TIME = 5;
 
-const COLIS_MULTIPLIERS: Record<string, number> = {
-  enveloppe: 1.0,
-  petit: 1.2,
-  moyen: 1.5,
-  gros: 2.0,
-  palette: 3.5,
+// Pricing grid per colis type
+const PRICING: Record<string, { base: number; perKm: number[]; tiers: number[] }> = {
+  enveloppe: { base: 3.50, perKm: [0.80, 0.60, 0.50], tiers: [10, 30] },
+  petit:     { base: 4.50, perKm: [1.00, 0.80, 0.65], tiers: [10, 30] },
+  moyen:     { base: 6.00, perKm: [1.30, 1.00, 0.85], tiers: [10, 30] },
+  gros:      { base: 8.50, perKm: [1.80, 1.40, 1.15], tiers: [10, 30] },
+  palette:   { base: 15.00, perKm: [3.00, 2.50, 2.00], tiers: [10, 30] },
+};
+
+function calculatePrice(distanceKm: number, colisId: string): number {
+  const grid = PRICING[colisId] || PRICING.petit;
+  let price = grid.base;
+  let remaining = distanceKm;
+
+  // Tier 1: 0 to tiers[0] km
+  const tier1 = Math.min(remaining, grid.tiers[0]);
+  price += tier1 * grid.perKm[0];
+  remaining -= tier1;
+
+  // Tier 2: tiers[0] to tiers[1] km
+  if (remaining > 0) {
+    const tier2 = Math.min(remaining, grid.tiers[1] - grid.tiers[0]);
+    price += tier2 * grid.perKm[1];
+    remaining -= tier2;
+  }
+
+  // Tier 3: beyond tiers[1] km
+  if (remaining > 0) {
+    price += remaining * grid.perKm[2];
+  }
+
+  return Math.round(price * 100) / 100;
+}
+
+// Traffic surcharge multiplier
+const TRAFFIC_SURCHARGE: Record<string, number> = {
+  'fluide': 1.0,
+  'modéré': 1.10,  // +10%
+  'dense': 1.20,   // +20%
+  'inconnu': 1.0,
 };
 
 export default function ClientHomeScreen() {
   const router = useRouter();
   const [adresseDepart, setAdresseDepart] = useState('');
   const [adresseArrivee, setAdresseArrivee] = useState('');
+  const [departCoords, setDepartCoords] = useState<Position | null>(null);
+  const [arriveeCoords, setArriveeCoords] = useState<Position | null>(null);
   const [selectedColis, setSelectedColis] = useState<ColisType>(COLIS_TYPES[1]);
   const [currentPosition, setCurrentPosition] = useState<Position | null>(null);
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
   const [estimatedDistance, setEstimatedDistance] = useState<number | null>(null);
+  const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
+  const [trafficLevel, setTrafficLevel] = useState<string>('inconnu');
+  const [loadingRoute, setLoadingRoute] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
+        const granted = await requestLocationPermission();
+        if (!granted) {
+          Alert.alert(
+            'Position requise',
+            "Veuillez autoriser l'accès à votre position pour utiliser Coliway."
+          );
+          setCurrentPosition({
+            latitude: DEFAULT_MAP_REGION.latitude,
+            longitude: DEFAULT_MAP_REGION.longitude,
+          });
+          return;
+        }
+
         const location = await getCurrentPosition();
         setCurrentPosition(location.coords);
+
+        // Auto-fill departure address and coords from current position
+        setDepartCoords({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+        const address = await reverseGeocodePosition(location.coords);
+        if (address) {
+          setAdresseDepart(address);
+        }
       } catch {
         // Fallback to default Paris location
         setCurrentPosition({
@@ -58,19 +127,44 @@ export default function ClientHomeScreen() {
   }, []);
 
   useEffect(() => {
-    // Estimate price when both addresses are filled
-    if (adresseDepart.length > 3 && adresseArrivee.length > 3) {
-      // Simulate distance calculation (in real app, use geocoding + route API)
-      const simulatedDistance = 5 + Math.random() * 15;
-      setEstimatedDistance(Math.round(simulatedDistance * 10) / 10);
-      const multiplier = COLIS_MULTIPLIERS[selectedColis.id] || 1;
-      const price = BASE_PRICE + simulatedDistance * PRICE_PER_KM * multiplier;
-      setEstimatedPrice(Math.round(price * 100) / 100);
-    } else {
+    if (!departCoords || !arriveeCoords) {
       setEstimatedPrice(null);
       setEstimatedDistance(null);
+      setEstimatedTime(null);
+      setTrafficLevel('inconnu');
+      return;
     }
-  }, [adresseDepart, adresseArrivee, selectedColis]);
+
+    let cancelled = false;
+    setLoadingRoute(true);
+
+    (async () => {
+      try {
+        const route = await getRouteInfo(departCoords, arriveeCoords);
+        if (cancelled) return;
+
+        setEstimatedDistance(route.distanceKm);
+        // Delivery time = driving time with real-time traffic
+        const totalTime = Math.max(route.durationTrafficMin, MIN_DELIVERY_TIME);
+        setEstimatedTime(totalTime);
+        setTrafficLevel(route.trafficLevel);
+
+        // Price = base colis price + distance tiers + traffic surcharge
+        const basePrice = calculatePrice(route.distanceKm, selectedColis.id);
+        const surcharge = TRAFFIC_SURCHARGE[route.trafficLevel] || 1.0;
+        setEstimatedPrice(Math.round(basePrice * surcharge * 100) / 100);
+      } catch {
+        if (cancelled) return;
+        setEstimatedPrice(null);
+        setEstimatedDistance(null);
+        setEstimatedTime(null);
+      } finally {
+        if (!cancelled) setLoadingRoute(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [selectedColis, departCoords, arriveeCoords]);
 
   const handleCommander = () => {
     if (!adresseDepart.trim()) {
@@ -90,8 +184,12 @@ export default function ClientHomeScreen() {
         typeColis: selectedColis.id,
         prixEstime: estimatedPrice?.toString() || '0',
         distance: estimatedDistance?.toString() || '0',
+        departLat: departCoords?.latitude?.toString() || '',
+        departLng: departCoords?.longitude?.toString() || '',
+        arriveeLat: arriveeCoords?.latitude?.toString() || '',
+        arriveeLng: arriveeCoords?.longitude?.toString() || '',
       },
-    });
+    } as any);
   };
 
   const mapRegion = currentPosition
@@ -115,7 +213,10 @@ export default function ClientHomeScreen() {
     : [];
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       {/* Map Section */}
       <View style={styles.mapContainer}>
         <Map
@@ -131,7 +232,8 @@ export default function ClientHomeScreen() {
         style={styles.card}
         contentContainerStyle={styles.cardContent}
         showsVerticalScrollIndicator={false}
-        bounces={false}
+        keyboardShouldPersistTaps="always"
+        nestedScrollEnabled
       >
         <View style={styles.cardHandle} />
 
@@ -139,24 +241,27 @@ export default function ClientHomeScreen() {
 
         {/* Address Inputs */}
         <View style={styles.addressSection}>
-          <Input
-            value={adresseDepart}
-            onChangeText={setAdresseDepart}
+          <AddressInput
             placeholder="Adresse de départ"
             icon="location"
-            style={styles.addressInput}
+            value={adresseDepart}
+            onAddressSelect={(address, lat, lng) => {
+              setAdresseDepart(address);
+              setDepartCoords({ latitude: lat, longitude: lng });
+            }}
           />
 
           <View style={styles.arrowContainer}>
             <Ionicons name="arrow-down" size={20} color={Colors.secondary} />
           </View>
 
-          <Input
-            value={adresseArrivee}
-            onChangeText={setAdresseArrivee}
+          <AddressInput
             placeholder="Adresse d'arrivée"
             icon="navigate"
-            style={styles.addressInput}
+            onAddressSelect={(address, lat, lng) => {
+              setAdresseArrivee(address);
+              setArriveeCoords({ latitude: lat, longitude: lng });
+            }}
           />
         </View>
 
@@ -205,22 +310,53 @@ export default function ClientHomeScreen() {
         </ScrollView>
 
         {/* Price Estimate */}
-        {estimatedPrice !== null && (
+        {loadingRoute && departCoords && arriveeCoords && (
+          <View style={styles.priceContainer}>
+            <ActivityIndicator size="small" color={Colors.secondary} />
+            <Text style={[styles.priceInfoText, { textAlign: 'center', marginTop: 8 }]}>
+              Calcul du trajet en temps réel...
+            </Text>
+          </View>
+        )}
+        {!loadingRoute && estimatedPrice !== null && (
           <View style={styles.priceContainer}>
             <View style={styles.priceRow}>
               <View style={styles.priceInfo}>
                 <Ionicons name="speedometer-outline" size={18} color={Colors.textLight} />
                 <Text style={styles.priceInfoText}>
-                  {estimatedDistance} km estimés
+                  {estimatedDistance} km
                 </Text>
               </View>
               <View style={styles.priceInfo}>
                 <Ionicons name="time-outline" size={18} color={Colors.textLight} />
                 <Text style={styles.priceInfoText}>
-                  ~{Math.round((estimatedDistance || 0) * 2.5)} min
+                  ~{estimatedTime} min
+                </Text>
+              </View>
+              <View style={styles.priceInfo}>
+                <Ionicons
+                  name="car-outline"
+                  size={18}
+                  color={trafficLevel === 'fluide' ? Colors.success : trafficLevel === 'dense' ? '#E74C3C' : Colors.accent}
+                />
+                <Text style={[
+                  styles.priceInfoText,
+                  { color: trafficLevel === 'fluide' ? Colors.success : trafficLevel === 'dense' ? '#E74C3C' : Colors.accent }
+                ]}>
+                  {trafficLevel === 'inconnu' ? '' : `Trafic ${trafficLevel}`}
                 </Text>
               </View>
             </View>
+            {trafficLevel === 'dense' && (
+              <Text style={styles.trafficWarning}>
+                Surcharge trafic dense (+20%)
+              </Text>
+            )}
+            {trafficLevel === 'modéré' && (
+              <Text style={styles.trafficInfo}>
+                Surcharge trafic modéré (+10%)
+              </Text>
+            )}
             <View style={styles.priceEstimate}>
               <Text style={styles.priceLabel}>Prix estimé</Text>
               <Text style={styles.priceValue}>{estimatedPrice.toFixed(2)} €</Text>
@@ -236,7 +372,7 @@ export default function ClientHomeScreen() {
           style={styles.commanderButton}
         />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -258,13 +394,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopLeftRadius: BorderRadius.xxl,
     borderTopRightRadius: BorderRadius.xxl,
-    marginTop: -24,
+    marginTop: -20,
     ...Shadows.card,
   },
   cardContent: {
-    padding: Spacing.xl,
+    padding: Spacing.lg,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: 40,
   },
   cardHandle: {
     width: 40,
@@ -282,6 +418,7 @@ const styles = StyleSheet.create({
   },
   addressSection: {
     marginBottom: Spacing.md,
+    zIndex: 999,
   },
   addressInput: {
     marginBottom: Spacing.xs,
@@ -371,6 +508,20 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.bold,
     color: Colors.primary,
+  },
+  trafficWarning: {
+    fontSize: Typography.sizes.sm,
+    color: '#E74C3C',
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+    fontWeight: Typography.weights.medium,
+  },
+  trafficInfo: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.accent,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+    fontWeight: Typography.weights.medium,
   },
   commanderButton: {
     marginTop: Spacing.sm,

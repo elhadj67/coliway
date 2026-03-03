@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { getLivreurOrders, Order } from '@/services/orders';
 import { ORDER_STATUS, OrderStatus, COLIS_TYPES } from '@/constants/config';
 import { Timestamp } from 'firebase/firestore';
