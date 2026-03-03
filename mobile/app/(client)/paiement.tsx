@@ -12,6 +12,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
+import * as WebBrowser from 'expo-web-browser';
 import {
   createPaymentIntent,
   confirmPayment,
@@ -40,7 +41,6 @@ export default function PaiementScreen() {
   const [paymentState, setPaymentState] = useState<PaymentState>('input');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Card fields (placeholder UI)
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCVC, setCardCVC] = useState('');
@@ -100,8 +100,6 @@ export default function PaiementScreen() {
           Math.round(montant * 100) // Stripe uses cents
         );
 
-        // In a real app, the Stripe SDK would handle the UI and confirmation.
-        // Here we call confirmPayment as a placeholder.
         const result = await confirmPayment(clientSecret);
 
         if (result.success) {
@@ -116,9 +114,18 @@ export default function PaiementScreen() {
           orderId,
           Math.round(montant * 100)
         );
-        // In a real app, open a WebView for PayPal approval
-        // For now, simulate success
-        setPaymentState('success');
+
+        const result = await WebBrowser.openAuthSessionAsync(
+          approvalUrl,
+          'coliway://payment-return'
+        );
+
+        if (result.type === 'success') {
+          setPaymentState('success');
+        } else {
+          setErrorMessage('Paiement PayPal annule ou echoue.');
+          setPaymentState('failure');
+        }
       }
     } catch (error) {
       const msg =

@@ -12,7 +12,7 @@ export const FIREBASE_CONFIG = {
 export const STRIPE_PUBLISHABLE_KEY = 'pk_test_51T6Jr70SFdhv4iZ89AvamlfGYTZgDo6oiEp00wHgmnOx5RYokYBIdYSZ0VhLgl3tsY4SPF9EGtxVXyqy3KpiqHCB00hahnQNUT';
 
 // Google Maps configuration
-export const GOOGLE_MAPS_API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY';
+export const GOOGLE_MAPS_API_KEY = 'AIzaSyBmB58zih7ICTRrycl1bVfB_OybotqKxW4';
 
 // Google Sign-In (Web Client ID from Firebase Console > Authentication > Google provider)
 export const GOOGLE_WEB_CLIENT_ID = '553047283159-vc4u3l43451agmapq90q6nscb5d8i8ro.apps.googleusercontent.com';

@@ -4,11 +4,28 @@ const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const express = require("express");
 
+const { Client, Environment, OrdersController } = require("@paypal/paypal-server-sdk");
+
 const db = admin.firestore();
 
 // Stripe secret key from Firebase environment config
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
+
+// PayPal config
+const paypalClientId = defineSecret("PAYPAL_CLIENT_ID");
+const paypalClientSecret = defineSecret("PAYPAL_CLIENT_SECRET");
+
+function getPaypalClient() {
+  const client = new Client({
+    clientCredentialsAuthCredentials: {
+      oAuthClientId: paypalClientId.value(),
+      oAuthClientSecret: paypalClientSecret.value(),
+    },
+    environment: Environment.Sandbox,
+  });
+  return new OrdersController(client);
+}
 
 // ============================================================
 // createPaymentIntent - Creates a Stripe PaymentIntent
@@ -229,129 +246,173 @@ exports.stripeWebhook = onRequest(
 );
 
 // ============================================================
-// createPaypalOrder - Placeholder for PayPal order creation
+// createPaypalPayment - Creates a PayPal order and returns approval URL
 // ============================================================
-exports.createPaypalOrder = onCall({ region: "europe-west1" }, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
-  }
-
-  const { commandeId } = request.data;
-
-  if (!commandeId) {
-    throw new HttpsError("invalid-argument", "L'identifiant de la commande est requis.");
-  }
-
-  try {
-    // Recuperer la commande
-    const commandeRef = db.collection("commandes").doc(commandeId);
-    const commandeDoc = await commandeRef.get();
-
-    if (!commandeDoc.exists) {
-      throw new HttpsError("not-found", "Commande introuvable.");
+exports.createPaypalPayment = onCall(
+  { secrets: [paypalClientId, paypalClientSecret], region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
     }
 
-    const commandeData = commandeDoc.data();
+    const { commandeId } = request.data;
 
-    // Verifier que c'est bien le client
-    if (commandeData.clientId !== request.auth.uid) {
-      throw new HttpsError(
-        "permission-denied",
-        "Vous ne pouvez payer que vos propres commandes."
-      );
+    if (!commandeId) {
+      throw new HttpsError("invalid-argument", "L'identifiant de la commande est requis.");
     }
 
-    // TODO: Integrer l'API PayPal
-    // const paypalOrder = await paypalClient.orders.create(...)
+    try {
+      const commandeRef = db.collection("commandes").doc(commandeId);
+      const commandeDoc = await commandeRef.get();
 
-    // Placeholder: sauvegarder un paiement en attente
-    const paiementData = {
-      commandeId,
-      clientId: request.auth.uid,
-      montant: commandeData.prix,
-      devise: "eur",
-      methode: "paypal",
-      status: "en_attente",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
+      if (!commandeDoc.exists) {
+        throw new HttpsError("not-found", "Commande introuvable.");
+      }
 
-    const paiementRef = await db.collection("paiements").add(paiementData);
+      const commandeData = commandeDoc.data();
 
-    logger.info(`Ordre PayPal cree (placeholder) pour commande: ${commandeId}`);
+      if (commandeData.clientId !== request.auth.uid) {
+        throw new HttpsError(
+          "permission-denied",
+          "Vous ne pouvez payer que vos propres commandes."
+        );
+      }
 
-    return {
-      success: true,
-      paiementId: paiementRef.id,
-      message: "Integration PayPal en cours de developpement.",
-      // paypalOrderId: paypalOrder.id,
-      // approvalUrl: paypalOrder.links.find(l => l.rel === 'approve').href,
-    };
-  } catch (error) {
-    if (error instanceof HttpsError) throw error;
-    logger.error("Erreur lors de la creation de l'ordre PayPal:", error);
-    throw new HttpsError("internal", "Erreur lors de la creation du paiement PayPal.");
+      // Verifier que la commande n'est pas deja payee
+      const existingPayment = await db
+        .collection("paiements")
+        .where("commandeId", "==", commandeId)
+        .where("status", "==", "reussi")
+        .limit(1)
+        .get();
+
+      if (!existingPayment.empty) {
+        throw new HttpsError("already-exists", "Cette commande a deja ete payee.");
+      }
+
+      // Creer l'ordre PayPal
+      const ordersController = getPaypalClient();
+      const montant = commandeData.prix.toFixed(2);
+
+      const { body } = await ordersController.ordersCreate({
+        body: {
+          intent: "CAPTURE",
+          purchaseUnits: [
+            {
+              amount: {
+                currencyCode: "EUR",
+                value: montant,
+              },
+              description: `Coliway - Commande ${commandeId}`,
+              customId: commandeId,
+            },
+          ],
+          applicationContext: {
+            returnUrl: "coliway://payment-return",
+            cancelUrl: "coliway://payment-cancel",
+            brandName: "Coliway",
+            userAction: "PAY_NOW",
+          },
+        },
+      });
+
+      const paypalOrder = JSON.parse(body);
+      const approvalLink = paypalOrder.links.find((l) => l.rel === "approve");
+
+      if (!approvalLink) {
+        throw new HttpsError("internal", "Impossible de creer le lien PayPal.");
+      }
+
+      // Sauvegarder le paiement
+      const paiementData = {
+        commandeId,
+        clientId: request.auth.uid,
+        montant: commandeData.prix,
+        devise: "eur",
+        methode: "paypal",
+        paypalOrderId: paypalOrder.id,
+        status: "en_attente",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      await db.collection("paiements").add(paiementData);
+
+      logger.info(`Ordre PayPal cree: ${paypalOrder.id} pour commande: ${commandeId}`);
+
+      return {
+        approvalUrl: approvalLink.href,
+        paymentId: paypalOrder.id,
+      };
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error("Erreur lors de la creation de l'ordre PayPal:", error);
+      throw new HttpsError("internal", "Erreur lors de la creation du paiement PayPal.");
+    }
   }
-});
+);
 
 // ============================================================
-// capturePaypalOrder - Placeholder for PayPal payment capture
+// capturePaypalOrder - Captures a PayPal payment after user approval
 // ============================================================
-exports.capturePaypalOrder = onCall({ region: "europe-west1" }, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
-  }
-
-  const { paiementId, paypalOrderId } = request.data;
-
-  if (!paiementId) {
-    throw new HttpsError("invalid-argument", "L'identifiant du paiement est requis.");
-  }
-
-  try {
-    // Recuperer le paiement
-    const paiementRef = db.collection("paiements").doc(paiementId);
-    const paiementDoc = await paiementRef.get();
-
-    if (!paiementDoc.exists) {
-      throw new HttpsError("not-found", "Paiement introuvable.");
+exports.capturePaypalOrder = onCall(
+  { secrets: [paypalClientId, paypalClientSecret], region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
     }
 
-    const paiementData = paiementDoc.data();
+    const { paypalOrderId } = request.data;
 
-    // Verifier que c'est bien le client
-    if (paiementData.clientId !== request.auth.uid) {
-      throw new HttpsError("permission-denied", "Acces refuse.");
+    if (!paypalOrderId) {
+      throw new HttpsError("invalid-argument", "L'identifiant PayPal est requis.");
     }
 
-    // TODO: Capturer le paiement via l'API PayPal
-    // const capture = await paypalClient.orders.capture(paypalOrderId)
+    try {
+      // Capturer le paiement via l'API PayPal
+      const ordersController = getPaypalClient();
+      const { body } = await ordersController.ordersCapture({ id: paypalOrderId });
+      const captureResult = JSON.parse(body);
 
-    // Placeholder: marquer comme reussi
-    await paiementRef.update({
-      status: "reussi",
-      paypalOrderId: paypalOrderId || null,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+      if (captureResult.status !== "COMPLETED") {
+        throw new HttpsError("internal", "La capture PayPal a echoue.");
+      }
 
-    // Mettre a jour la commande
-    const commandeRef = db.collection("commandes").doc(paiementData.commandeId);
-    await commandeRef.update({
-      paiementStatus: "paye",
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+      // Mettre a jour le paiement en base
+      const paiementsSnapshot = await db
+        .collection("paiements")
+        .where("paypalOrderId", "==", paypalOrderId)
+        .limit(1)
+        .get();
 
-    logger.info(
-      `Paiement PayPal capture (placeholder) pour commande: ${paiementData.commandeId}`
-    );
+      if (!paiementsSnapshot.empty) {
+        const paiementDoc = paiementsSnapshot.docs[0];
+        const paiementData = paiementDoc.data();
 
-    return {
-      success: true,
-      message: "Integration PayPal en cours de developpement.",
-    };
-  } catch (error) {
-    if (error instanceof HttpsError) throw error;
-    logger.error("Erreur lors de la capture PayPal:", error);
-    throw new HttpsError("internal", "Erreur lors de la capture du paiement PayPal.");
+        if (paiementData.clientId !== request.auth.uid) {
+          throw new HttpsError("permission-denied", "Acces refuse.");
+        }
+
+        await paiementDoc.ref.update({
+          status: "reussi",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Mettre a jour la commande
+        const commandeRef = db.collection("commandes").doc(paiementData.commandeId);
+        await commandeRef.update({
+          paiementStatus: "paye",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        logger.info(`Paiement PayPal capture: ${paypalOrderId} pour commande: ${paiementData.commandeId}`);
+      }
+
+      return { success: true };
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error("Erreur lors de la capture PayPal:", error);
+      throw new HttpsError("internal", "Erreur lors de la capture du paiement PayPal.");
+    }
   }
-});
+);

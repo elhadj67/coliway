@@ -158,12 +158,10 @@ describe('SEC-01: API keys are not hardcoded in production-exposed files', () =>
     expect(hasHardcodedGoogleKey).toBe(true);
   });
 
-  it('should verify GOOGLE_MAPS_API_KEY in config.ts is a placeholder (not yet set)', () => {
-    // The GOOGLE_MAPS_API_KEY in config.ts is intentionally a placeholder
-    const placeholderPattern = /GOOGLE_MAPS_API_KEY\s*=\s*['"]YOUR_/;
-    const isPlaceholder = placeholderPattern.test(configSource);
+  it('should verify GOOGLE_MAPS_API_KEY in config.ts is set to a real key', () => {
+    const hasRealKey = /GOOGLE_MAPS_API_KEY\s*=\s*['"]AIza/.test(configSource);
 
-    expect(isPlaceholder).toBe(true);
+    expect(hasRealKey).toBe(true);
   });
 });
 

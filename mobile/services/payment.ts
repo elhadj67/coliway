@@ -53,15 +53,13 @@ export async function confirmPayment(
 }
 
 /**
- * Creates a PayPal payment (placeholder for future implementation).
+ * Creates a PayPal payment by calling the backend cloud function.
+ * Returns an approval URL for the user to complete payment in browser.
  */
 export async function createPaypalPayment(
   commandeId: string,
   amount: number
 ): Promise<PaypalPaymentResponse> {
-  // Placeholder: PayPal integration will be implemented in a future version.
-  // This would call a cloud function that creates a PayPal order and returns
-  // an approval URL for the user to complete payment.
   const createPaypalFn = httpsCallable<
     { commandeId: string; amount: number },
     PaypalPaymentResponse

@@ -27,7 +27,7 @@ exports.getCommandesLivreur = commandes.getCommandesLivreur;
 const paiements = require("./paiements");
 exports.createPaymentIntent = paiements.createPaymentIntent;
 exports.stripeWebhook = paiements.stripeWebhook;
-exports.createPaypalOrder = paiements.createPaypalOrder;
+exports.createPaypalPayment = paiements.createPaypalPayment;
 exports.capturePaypalOrder = paiements.capturePaypalOrder;
 
 // ============================================================
