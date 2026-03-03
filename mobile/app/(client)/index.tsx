@@ -25,54 +25,14 @@ import {
 import { COLIS_TYPES, ColisType, DEFAULT_MAP_REGION } from '../../constants/config';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../constants/theme';
 import { getRouteInfo, RouteInfo } from '../../services/routing';
+import {
+  calculatePrice,
+  TRAFFIC_SURCHARGE,
+  MIN_DELIVERY_TIME,
+} from '../../services/pricing';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.35;
-
-// Minimum delivery time in minutes (even for very short distances)
-const MIN_DELIVERY_TIME = 5;
-
-// Pricing grid per colis type
-const PRICING: Record<string, { base: number; perKm: number[]; tiers: number[] }> = {
-  enveloppe: { base: 3.50, perKm: [0.80, 0.60, 0.50], tiers: [10, 30] },
-  petit:     { base: 4.50, perKm: [1.00, 0.80, 0.65], tiers: [10, 30] },
-  moyen:     { base: 6.00, perKm: [1.30, 1.00, 0.85], tiers: [10, 30] },
-  gros:      { base: 8.50, perKm: [1.80, 1.40, 1.15], tiers: [10, 30] },
-  palette:   { base: 15.00, perKm: [3.00, 2.50, 2.00], tiers: [10, 30] },
-};
-
-function calculatePrice(distanceKm: number, colisId: string): number {
-  const grid = PRICING[colisId] || PRICING.petit;
-  let price = grid.base;
-  let remaining = distanceKm;
-
-  // Tier 1: 0 to tiers[0] km
-  const tier1 = Math.min(remaining, grid.tiers[0]);
-  price += tier1 * grid.perKm[0];
-  remaining -= tier1;
-
-  // Tier 2: tiers[0] to tiers[1] km
-  if (remaining > 0) {
-    const tier2 = Math.min(remaining, grid.tiers[1] - grid.tiers[0]);
-    price += tier2 * grid.perKm[1];
-    remaining -= tier2;
-  }
-
-  // Tier 3: beyond tiers[1] km
-  if (remaining > 0) {
-    price += remaining * grid.perKm[2];
-  }
-
-  return Math.round(price * 100) / 100;
-}
-
-// Traffic surcharge multiplier
-const TRAFFIC_SURCHARGE: Record<string, number> = {
-  'fluide': 1.0,
-  'modéré': 1.10,  // +10%
-  'dense': 1.20,   // +20%
-  'inconnu': 1.0,
-};
 
 export default function ClientHomeScreen() {
   const router = useRouter();
