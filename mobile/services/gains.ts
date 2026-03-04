@@ -3,9 +3,24 @@
  * Used by the livreur gains screen.
  */
 
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
 import { calculateDistance } from './location';
 
 export const COMMISSION_RATE = 0.20;
+
+export async function fetchCommissionRate(): Promise<number> {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'commission'));
+    if (snap.exists()) {
+      const data = snap.data();
+      if (typeof data.rate === 'number') return data.rate;
+    }
+    return COMMISSION_RATE;
+  } catch {
+    return COMMISSION_RATE;
+  }
+}
 
 export type PeriodKey = 'today' | 'week' | 'month' | 'total';
 
@@ -70,14 +85,14 @@ export function orderInPeriod(order: OrderForGains, period: PeriodKey): boolean 
   return orderDate >= startDate;
 }
 
-export function getEarnings(order: OrderForGains): number {
+export function getEarnings(order: OrderForGains, commissionRate: number = COMMISSION_RATE): number {
   const price = order.prixFinal || order.prixEstime || 0;
-  return price * (1 - COMMISSION_RATE);
+  return price * (1 - commissionRate);
 }
 
-export function getCommission(order: OrderForGains): number {
+export function getCommission(order: OrderForGains, commissionRate: number = COMMISSION_RATE): number {
   const price = order.prixFinal || order.prixEstime || 0;
-  return price * COMMISSION_RATE;
+  return price * commissionRate;
 }
 
 export function getOrderDistance(order: OrderForGains): number {

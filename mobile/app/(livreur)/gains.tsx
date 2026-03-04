@@ -17,8 +17,7 @@ import { getLivreurOrders, Order } from '@/services/orders';
 import { calculateDistance } from '@/services/location';
 import { Colors } from '@/constants/theme';
 import { Timestamp } from 'firebase/firestore';
-
-const COMMISSION_RATE = 0.20;
+import { fetchCommissionRate, COMMISSION_RATE as DEFAULT_COMMISSION_RATE } from '@/services/gains';
 
 type PeriodKey = 'today' | 'week' | 'month' | 'total';
 
@@ -80,14 +79,14 @@ function orderInPeriod(order: Order, period: PeriodKey): boolean {
   return orderDate >= startDate;
 }
 
-function getEarnings(order: Order): number {
+function getEarnings(order: Order, commissionRate: number): number {
   const price = order.prixFinal || order.prixEstime || 0;
-  return price * (1 - COMMISSION_RATE);
+  return price * (1 - commissionRate);
 }
 
-function getCommission(order: Order): number {
+function getCommission(order: Order, commissionRate: number): number {
   const price = order.prixFinal || order.prixEstime || 0;
-  return price * COMMISSION_RATE;
+  return price * commissionRate;
 }
 
 function getOrderDistance(order: Order): number {
@@ -120,7 +119,7 @@ interface DayEarnings {
   amount: number;
 }
 
-function getDailyEarnings(orders: Order[]): DayEarnings[] {
+function getDailyEarnings(orders: Order[], commissionRate: number): DayEarnings[] {
   const map = new Map<string, number>();
 
   orders.forEach((order) => {
@@ -135,7 +134,7 @@ function getDailyEarnings(orders: Order[]): DayEarnings[] {
       month: '2-digit',
     });
     const prev = map.get(key) || 0;
-    map.set(key, prev + getEarnings(order));
+    map.set(key, prev + getEarnings(order, commissionRate));
   });
 
   return Array.from(map.entries())
@@ -149,6 +148,11 @@ export default function GainsScreen() {
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>('today');
   const [loading, setLoading] = useState(true);
+  const [commissionRate, setCommissionRate] = useState(DEFAULT_COMMISSION_RATE);
+
+  useEffect(() => {
+    fetchCommissionRate().then(setCommissionRate);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -164,7 +168,7 @@ export default function GainsScreen() {
 
   const periodOrders = allOrders.filter((o) => orderInPeriod(o, selectedPeriod));
 
-  const totalEarnings = periodOrders.reduce((sum, o) => sum + getEarnings(o), 0);
+  const totalEarnings = periodOrders.reduce((sum, o) => sum + getEarnings(o, commissionRate), 0);
   const totalCourses = periodOrders.length;
   const averageEarning = totalCourses > 0 ? totalEarnings / totalCourses : 0;
   const totalDistance = periodOrders.reduce(
@@ -172,7 +176,7 @@ export default function GainsScreen() {
     0
   );
 
-  const dailyEarnings = getDailyEarnings(periodOrders);
+  const dailyEarnings = getDailyEarnings(periodOrders, commissionRate);
   const maxDailyAmount = Math.max(...dailyEarnings.map((d) => d.amount), 1);
 
   const handleRequestPayout = () => {
@@ -244,7 +248,7 @@ export default function GainsScreen() {
             {totalEarnings.toFixed(2)} EUR
           </Text>
           <Text style={styles.commissionInfo}>
-            Commission Coliway : {(COMMISSION_RATE * 100).toFixed(0)}%
+            Commission Coliway : {(commissionRate * 100).toFixed(0)}%
           </Text>
         </View>
 
@@ -317,8 +321,8 @@ export default function GainsScreen() {
             </View>
           ) : (
             periodOrders.slice(0, 10).map((order) => {
-              const earnings = getEarnings(order);
-              const commission = getCommission(order);
+              const earnings = getEarnings(order, commissionRate);
+              const commission = getCommission(order, commissionRate);
               return (
                 <View key={order.id} style={styles.transactionRow}>
                   <View style={styles.transactionLeft}>

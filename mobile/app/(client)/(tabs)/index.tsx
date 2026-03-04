@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,12 +34,15 @@ import {
   TRAFFIC_SURCHARGE,
   MIN_DELIVERY_TIME,
 } from '../../../services/pricing';
+import { useAuth } from '../../../hooks/useAuth';
+import { updateProfile, SavedAddress } from '../../../services/auth';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.25;
 
 export default function ClientHomeScreen() {
   const router = useRouter();
+  const { user, profile, refreshProfile } = useAuth();
   const [adresseDepart, setAdresseDepart] = useState('');
   const [adresseArrivee, setAdresseArrivee] = useState('');
   const [departCoords, setDepartCoords] = useState<Position | null>(null);
@@ -50,6 +55,76 @@ export default function ClientHomeScreen() {
   const [trafficLevel, setTrafficLevel] = useState<string>('inconnu');
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [livreurs, setLivreurs] = useState<Array<{ id: string; position: Position; prenom: string; nom: string; vehicule?: string }>>([]);
+  // Saved addresses
+  const [addAddressModal, setAddAddressModal] = useState(false);
+  const [newAddressLabel, setNewAddressLabel] = useState('');
+  const [newAddressValue, setNewAddressValue] = useState('');
+  const [newAddressCoords, setNewAddressCoords] = useState<Position | null>(null);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [addressTarget, setAddressTarget] = useState<'depart' | 'arrivee'>('depart');
+
+  const savedAddresses: SavedAddress[] = profile?.adressesSauvegardees || [];
+
+  const handleSaveNewAddress = async () => {
+    if (!user || !newAddressLabel.trim() || !newAddressValue.trim()) return;
+    setSavingAddress(true);
+    try {
+      const updated = [...savedAddresses, { label: newAddressLabel.trim(), adresse: newAddressValue.trim() }];
+      await updateProfile(user.uid, { adressesSauvegardees: updated });
+      await refreshProfile();
+      setAddAddressModal(false);
+      setNewAddressLabel('');
+      setNewAddressValue('');
+      setNewAddressCoords(null);
+    } catch {
+      Alert.alert('Erreur', 'Impossible d\'enregistrer l\'adresse.');
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
+  const handleDeleteSavedAddress = (index: number) => {
+    const addr = savedAddresses[index];
+    Alert.alert('Supprimer', `Supprimer "${addr.label}" ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer', style: 'destructive', onPress: async () => {
+          if (!user) return;
+          const updated = savedAddresses.filter((_, i) => i !== index);
+          await updateProfile(user.uid, { adressesSauvegardees: updated });
+          await refreshProfile();
+        },
+      },
+    ]);
+  };
+
+  const handlePickSavedAddress = async (addr: SavedAddress) => {
+    // Geocode the saved address
+    try {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr.adresse)}&format=json&countrycodes=fr&limit=1`,
+        { headers: { 'Accept': 'application/json', 'User-Agent': 'ColiwayApp/1.0' } }
+      );
+      const data = await resp.json();
+      const lat = data[0] ? parseFloat(data[0].lat) : 0;
+      const lng = data[0] ? parseFloat(data[0].lon) : 0;
+
+      if (!adresseDepart || addressTarget === 'depart') {
+        setAdresseDepart(addr.adresse);
+        setDepartCoords({ latitude: lat, longitude: lng });
+      } else {
+        setAdresseArrivee(addr.adresse);
+        setArriveeCoords({ latitude: lat, longitude: lng });
+      }
+    } catch {
+      // Fallback without coords
+      if (!adresseDepart || addressTarget === 'depart') {
+        setAdresseDepart(addr.adresse);
+      } else {
+        setAdresseArrivee(addr.adresse);
+      }
+    }
+  };
 
   // Subscribe to available livreurs with positions
   useEffect(() => {
@@ -246,6 +321,37 @@ export default function ClientHomeScreen() {
 
         <Text style={styles.title}>Envoyer un colis</Text>
 
+        {/* Saved Addresses */}
+        <View style={styles.savedSection}>
+          <Text style={styles.savedSectionLabel}>Mes adresses enregistrées</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.savedList}
+          >
+            {savedAddresses.map((addr, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.savedChip}
+                onPress={() => handlePickSavedAddress(addr)}
+                onLongPress={() => handleDeleteSavedAddress(index)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="bookmark" size={14} color={Colors.secondary} />
+                <Text style={styles.savedChipLabel} numberOfLines={1}>{addr.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={styles.addChip}
+              onPress={() => setAddAddressModal(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add" size={16} color={Colors.primary} />
+              <Text style={styles.addChipText}>Ajouter</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
         {/* Address Inputs */}
         <View style={styles.addressSection}>
           <AddressInput
@@ -255,6 +361,7 @@ export default function ClientHomeScreen() {
             onAddressSelect={(address, lat, lng) => {
               setAdresseDepart(address);
               setDepartCoords({ latitude: lat, longitude: lng });
+              setAddressTarget('arrivee');
             }}
           />
 
@@ -265,6 +372,7 @@ export default function ClientHomeScreen() {
           <AddressInput
             placeholder="Adresse d'arrivée"
             icon="navigate"
+            value={adresseArrivee}
             onAddressSelect={(address, lat, lng) => {
               setAdresseArrivee(address);
               setArriveeCoords({ latitude: lat, longitude: lng });
@@ -389,6 +497,70 @@ export default function ClientHomeScreen() {
           <Text style={styles.newOrderDirectText}>Nouvelle commande sans estimation</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Modal ajouter adresse */}
+      <Modal
+        visible={addAddressModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddAddressModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Nouvelle adresse</Text>
+              <TouchableOpacity onPress={() => setAddAddressModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.textLight} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalLabel}>Nom</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={newAddressLabel}
+              onChangeText={setNewAddressLabel}
+              placeholder="Ex: Domicile, Bureau, Maman..."
+              placeholderTextColor={Colors.textLight}
+            />
+
+            <Text style={styles.modalLabel}>Adresse</Text>
+            <AddressInput
+              placeholder="Rechercher une adresse..."
+              icon="search-outline"
+              onAddressSelect={(address, lat, lng) => {
+                setNewAddressValue(address);
+                setNewAddressCoords({ latitude: lat, longitude: lng });
+              }}
+            />
+
+            {newAddressValue ? (
+              <View style={styles.selectedAddress}>
+                <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                <Text style={styles.selectedAddressText} numberOfLines={2}>{newAddressValue}</Text>
+              </View>
+            ) : null}
+
+            <TouchableOpacity
+              style={[
+                styles.modalSaveButton,
+                (!newAddressLabel.trim() || !newAddressValue.trim()) && styles.modalSaveButtonDisabled,
+              ]}
+              onPress={handleSaveNewAddress}
+              disabled={!newAddressLabel.trim() || !newAddressValue.trim() || savingAddress}
+              activeOpacity={0.7}
+            >
+              {savingAddress ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <Text style={styles.modalSaveButtonText}>Enregistrer</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -555,5 +727,124 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.md,
     color: Colors.secondary,
     fontWeight: Typography.weights.medium,
+  },
+  savedSection: {
+    marginBottom: Spacing.md,
+  },
+  savedSectionLabel: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textLight,
+    marginBottom: 6,
+  },
+  savedList: {
+    gap: 8,
+    paddingRight: Spacing.sm,
+  },
+  savedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.secondary + '40',
+    ...Shadows.card,
+  },
+  savedChipLabel: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
+    maxWidth: 120,
+  },
+  addChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+  },
+  addChipText: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.medium,
+    color: Colors.primary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  modalLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textLight,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: Colors.text,
+    marginBottom: 16,
+    backgroundColor: Colors.white,
+  },
+  selectedAddress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  selectedAddressText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.text,
+  },
+  modalSaveButton: {
+    backgroundColor: Colors.secondary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  modalSaveButtonDisabled: {
+    opacity: 0.5,
+  },
+  modalSaveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.white,
   },
 });

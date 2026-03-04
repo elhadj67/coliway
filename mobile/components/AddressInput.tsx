@@ -62,7 +62,7 @@ const AddressInput: React.FC<AddressInputProps> = ({
   const dismissedByTimerRef = useRef(false);
 
   React.useEffect(() => {
-    if (value && !text) {
+    if (value !== undefined) {
       setText(value);
     }
   }, [value]);
@@ -151,6 +151,7 @@ const AddressInput: React.FC<AddressInputProps> = ({
     onAddressSelect(suggestion.description, suggestion.lat, suggestion.lng);
   };
 
+
   const handleBlur = () => {
     setIsFocused(false);
     // If keyboard was dismissed by our timer, keep suggestions visible
@@ -186,7 +187,6 @@ const AddressInput: React.FC<AddressInputProps> = ({
           placeholderTextColor={COLORS.textLight}
           onFocus={() => {
             setIsFocused(true);
-            // Show suggestions again if we have some
             if (suggestions.length > 0) {
               setShowSuggestions(true);
             }

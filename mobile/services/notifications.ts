@@ -18,11 +18,10 @@ import { updateProfile } from './auth';
 export interface AppNotification {
   id: string;
   userId: string;
-  title: string;
-  body: string;
-  type: 'commande' | 'livraison' | 'paiement' | 'systeme';
+  titre: string;
+  message: string;
   data?: Record<string, string>;
-  read: boolean;
+  lue: boolean;
   createdAt: Timestamp;
 }
 
@@ -56,7 +55,7 @@ export async function registerForPushNotifications(
 
   // Set up Android notification channel
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
+    await Notifications.setNotificationChannelAsync('coliway_default', {
       name: 'Coliway',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
@@ -64,13 +63,11 @@ export async function registerForPushNotifications(
     });
   }
 
-  const tokenData = await Notifications.getExpoPushTokenAsync({
-    projectId: 'YOUR_EXPO_PROJECT_ID',
-  });
-  const token = tokenData.data;
+  const tokenData = await Notifications.getDevicePushTokenAsync();
+  const token = tokenData.data as string;
 
-  // Save the push token to the user's Firestore document
-  await updateProfile(userId, { pushToken: token } as Record<string, unknown> & { pushToken: string });
+  // Save the FCM token to the user's Firestore document
+  await updateProfile(userId, { fcmToken: token });
 
   return token;
 }
@@ -125,8 +122,8 @@ export function getNotifications(
 export async function markAsRead(notificationId: string): Promise<void> {
   const notifRef = doc(db, 'notifications', notificationId);
   await updateDoc(notifRef, {
-    read: true,
-    updatedAt: serverTimestamp(),
+    lue: true,
+    lueAt: serverTimestamp(),
   });
 }
 
@@ -140,7 +137,7 @@ export function subscribeToUnreadCount(
   const q = query(
     collection(db, 'notifications'),
     where('userId', '==', userId),
-    where('read', '==', false)
+    where('lue', '==', false)
   );
 
   return onSnapshot(q, (snapshot) => {

@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, StyleSheet, Image, View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
-import { subscribeToUnreadCount } from '@/services/notifications';
 
 function HeaderLogo() {
   return (
@@ -16,34 +14,6 @@ function HeaderLogo() {
         resizeMode="contain"
       />
     </View>
-  );
-}
-
-function HeaderNotifBell() {
-  const router = useRouter();
-  const { user } = useAuth();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    if (!user) return;
-    const unsubscribe = subscribeToUnreadCount(user.uid, setUnreadCount);
-    return () => unsubscribe();
-  }, [user]);
-
-  return (
-    <TouchableOpacity
-      style={styles.headerBellButton}
-      onPress={() => router.push('/(livreur)/notifications')}
-    >
-      <Ionicons name="notifications-outline" size={24} color={Colors.primary} />
-      {unreadCount > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </Text>
-        </View>
-      )}
-    </TouchableOpacity>
   );
 }
 
@@ -58,7 +28,7 @@ function HeaderAvatar() {
   return (
     <TouchableOpacity
       style={styles.headerAvatarButton}
-      onPress={() => router.push('/(livreur)/profil')}
+      onPress={() => router.push('/(admin)/(tabs)/profile')}
     >
       {profile?.photoURL ? (
         <Image source={{ uri: profile.photoURL }} style={styles.headerAvatar} />
@@ -71,16 +41,7 @@ function HeaderAvatar() {
   );
 }
 
-function HeaderRight() {
-  return (
-    <View style={styles.headerRightRow}>
-      <HeaderNotifBell />
-      <HeaderAvatar />
-    </View>
-  );
-}
-
-export default function LivreurTabsLayout() {
+export default function AdminTabsLayout() {
   return (
     <Tabs
       screenOptions={{
@@ -88,7 +49,7 @@ export default function LivreurTabsLayout() {
         headerTitleStyle: styles.headerTitle,
         headerTintColor: Colors.primary,
         headerTitle: () => <HeaderLogo />,
-        headerRight: () => <HeaderRight />,
+        headerRight: () => <HeaderAvatar />,
         headerRightContainerStyle: styles.headerRightContainer,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textLight,
@@ -102,25 +63,7 @@ export default function LivreurTabsLayout() {
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="speedometer-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="historique"
-        options={{
-          title: 'Historique',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="time-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="messages"
-        options={{
-          title: 'Messages',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles-outline" size={size} color={color} />
+            <Ionicons name="stats-chart-outline" size={size} color={color} />
           ),
         }}
       />
@@ -158,33 +101,6 @@ const styles = StyleSheet.create({
   },
   headerRightContainer: {
     paddingRight: Spacing.base,
-  },
-  headerRightRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  headerBellButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  badge: {
-    position: 'absolute',
-    top: -4,
-    right: -6,
-    backgroundColor: Colors.danger,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color: Colors.white,
-    fontSize: 10,
-    fontWeight: Typography.weights.bold,
   },
   headerAvatarButton: {
     alignItems: 'center',

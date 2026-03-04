@@ -9,6 +9,7 @@ export default function ClientLayout() {
       <Stack.Screen name="paiement" />
       <Stack.Screen name="historique" />
       <Stack.Screen name="profil" />
+      <Stack.Screen name="notifications" />
     </Stack>
   );
 }

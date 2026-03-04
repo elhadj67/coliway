@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Euro, CreditCard, Wallet } from 'lucide-react';
+import { Euro, CreditCard, Wallet, Trash2, Archive } from 'lucide-react';
 import DataTable, { Column } from '@/components/DataTable';
 import StatusBadge from '@/components/StatusBadge';
 import StatsCard from '@/components/StatsCard';
-import { getPaiements, Paiement } from '@/services/api';
+import Modal, { ModalButton } from '@/components/Modal';
+import { getPaiements, deleteOnePaiement, archiveOnePaiement, deletePaiements, archivePaiements, Paiement } from '@/services/api';
 
 const statusTabs = [
   { key: 'tous', label: 'Tous' },
@@ -20,21 +21,6 @@ const methodTabs = [
   { key: 'google_pay', label: 'Google Pay' },
 ];
 
-const mockPaiements: Paiement[] = [
-  { id: 'PAY-3401', commandeId: 'CMD-1247', montant: 18.50, methode: 'carte', status: 'reussi', createdAt: new Date('2026-02-28T14:32:00') },
-  { id: 'PAY-3400', commandeId: 'CMD-1246', montant: 24.00, methode: 'apple_pay', status: 'reussi', createdAt: new Date('2026-02-28T13:15:00') },
-  { id: 'PAY-3399', commandeId: 'CMD-1245', montant: 12.00, methode: 'carte', status: 'en_cours', createdAt: new Date('2026-02-28T12:48:00') },
-  { id: 'PAY-3398', commandeId: 'CMD-1244', montant: 35.50, methode: 'google_pay', status: 'reussi', createdAt: new Date('2026-02-28T11:20:00') },
-  { id: 'PAY-3397', commandeId: 'CMD-1243', montant: 15.00, methode: 'carte', status: 'reussi', createdAt: new Date('2026-02-28T10:45:00') },
-  { id: 'PAY-3396', commandeId: 'CMD-1242', montant: 22.00, methode: 'carte', status: 'rembourse', createdAt: new Date('2026-02-28T09:30:00') },
-  { id: 'PAY-3395', commandeId: 'CMD-1241', montant: 85.00, methode: 'carte', status: 'reussi', createdAt: new Date('2026-02-28T08:15:00') },
-  { id: 'PAY-3394', commandeId: 'CMD-1240', montant: 28.00, methode: 'apple_pay', status: 'reussi', createdAt: new Date('2026-02-27T16:40:00') },
-  { id: 'PAY-3393', commandeId: 'CMD-1239', montant: 16.50, methode: 'google_pay', status: 'reussi', createdAt: new Date('2026-02-27T15:10:00') },
-  { id: 'PAY-3392', commandeId: 'CMD-1238', montant: 42.00, methode: 'carte', status: 'echoue', createdAt: new Date('2026-02-27T14:22:00') },
-  { id: 'PAY-3391', commandeId: 'CMD-1237', montant: 9.50, methode: 'carte', status: 'reussi', createdAt: new Date('2026-02-27T12:55:00') },
-  { id: 'PAY-3390', commandeId: 'CMD-1236', montant: 14.00, methode: 'apple_pay', status: 'echoue', createdAt: new Date('2026-02-27T11:30:00') },
-];
-
 const methodeLabels: Record<string, string> = {
   carte: 'Carte bancaire',
   apple_pay: 'Apple Pay',
@@ -43,9 +29,12 @@ const methodeLabels: Record<string, string> = {
 
 const s = {
   page: { padding: '28px 32px', maxWidth: 1400 },
-  header: { marginBottom: 24 },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap' as const, gap: 12 },
   title: { fontSize: 26, fontWeight: 700 as const, color: '#1a1a2e' },
   subtitle: { fontSize: 14, color: '#6c757d', marginTop: 2 },
+  btnRow: { display: 'flex', gap: 8 },
+  archiveAllBtn: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 16px', background: '#f0f7ff', color: '#2E86DE', borderRadius: 8, fontSize: 13, fontWeight: 500 as const, border: '1px solid #d0e4f7', cursor: 'pointer' },
+  deleteAllBtn: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 16px', background: '#fff5f5', color: '#E74C3C', borderRadius: 8, fontSize: 13, fontWeight: 500 as const, border: '1px solid #f5d0d0', cursor: 'pointer' },
   statsRow: { display: 'flex', gap: 20, marginBottom: 24, flexWrap: 'wrap' as const },
   filtersRow: { display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' as const, alignItems: 'center' },
   filterLabel: { fontSize: 13, fontWeight: 600 as const, color: '#6c757d' },
@@ -58,18 +47,27 @@ const s = {
     color: active ? '#ffffff' : '#6c757d', background: active ? '#1B3A5C' : 'transparent',
     border: 'none', cursor: 'pointer', transition: 'all 0.15s',
   }),
+  detailRow: { display: 'flex', gap: 16, marginBottom: 10 },
+  detailLabel: { width: 120, fontSize: 13, fontWeight: 600 as const, color: '#6c757d', flexShrink: 0 },
+  detailValue: { fontSize: 13, color: '#1a1a2e' },
+  actionBtns: { display: 'flex', gap: 8, marginTop: 20, borderTop: '1px solid #f0f0f0', paddingTop: 16 },
+  toast: { position: 'fixed' as const, bottom: 24, right: 24, background: '#1a1a2e', color: '#fff', padding: '12px 20px', borderRadius: 10, fontSize: 14, fontWeight: 500 as const, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', cursor: 'pointer', zIndex: 999 },
 };
 
 export default function Paiements() {
-  const [paiements, setPaiements] = useState<Paiement[]>(mockPaiements);
+  const [paiements, setPaiements] = useState<Paiement[]>([]);
   const [statusFilter, setStatusFilter] = useState('tous');
   const [methodFilter, setMethodFilter] = useState('toutes');
+  const [selected, setSelected] = useState<Paiement | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ type: 'delete' | 'archive'; id?: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => {
-    getPaiements().then((data) => {
-      if (data.length > 0) setPaiements(data);
-    });
-  }, []);
+  const fetchData = () => {
+    getPaiements().then(setPaiements);
+  };
+
+  useEffect(() => { fetchData(); }, []);
 
   const filtered = paiements.filter((p) => {
     const matchStatus = statusFilter === 'tous' || p.status === statusFilter;
@@ -87,15 +85,37 @@ export default function Paiements() {
     .filter((p) => p.status === 'rembourse')
     .reduce((sum, p) => sum + p.montant, 0);
 
+  const handleAction = async () => {
+    if (!confirmModal) return;
+    setLoading(true);
+    try {
+      if (confirmModal.id) {
+        if (confirmModal.type === 'delete') await deleteOnePaiement(confirmModal.id);
+        else await archiveOnePaiement(confirmModal.id);
+        setToast(`Paiement ${confirmModal.type === 'delete' ? 'supprime' : 'archive'}`);
+      } else {
+        const count = confirmModal.type === 'delete' ? await deletePaiements() : await archivePaiements();
+        setToast(`${count} paiements ${confirmModal.type === 'delete' ? 'supprimes' : 'archives'}`);
+      }
+      setSelected(null);
+      fetchData();
+    } catch {
+      setToast('Erreur lors de l\'operation');
+    } finally {
+      setLoading(false);
+      setConfirmModal(null);
+    }
+  };
+
   const columns: Column<Paiement>[] = [
     { key: 'id', label: 'ID', sortable: true, width: 110, render: (row) => (
-      <span style={{ fontWeight: 600, color: '#1B3A5C' }}>{row.id}</span>
+      <span style={{ fontWeight: 600, color: '#1B3A5C' }}>{row.id.slice(0, 8)}</span>
     )},
     { key: 'commandeId', label: 'Commande', sortable: true, render: (row) => (
-      <span style={{ color: '#2E86DE', fontWeight: 500 }}>{row.commandeId}</span>
+      <span style={{ color: '#2E86DE', fontWeight: 500 }}>{row.commandeId?.slice(0, 8) || '-'}</span>
     )},
     { key: 'montant', label: 'Montant', sortable: true, width: 110, render: (row) => (
-      <span style={{ fontWeight: 700 }}>{row.montant.toFixed(2)} EUR</span>
+      <span style={{ fontWeight: 700 }}>{(row.montant || 0).toFixed(2)} EUR</span>
     )},
     { key: 'methode', label: 'Methode', sortable: true, render: (row) => (
       methodeLabels[row.methode] || row.methode
@@ -104,7 +124,7 @@ export default function Paiements() {
       <StatusBadge status={row.status} size="sm" />
     )},
     { key: 'createdAt', label: 'Date', sortable: true, width: 140, render: (row) => {
-      const d = row.createdAt instanceof Date ? row.createdAt : new Date();
+      const d = row.createdAt instanceof Date ? row.createdAt : row.createdAt && 'toDate' in row.createdAt ? (row.createdAt as any).toDate() : new Date();
       return d.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     }},
   ];
@@ -112,8 +132,14 @@ export default function Paiements() {
   return (
     <div style={s.page} className="fade-in">
       <div style={s.header}>
-        <h1 style={s.title}>Paiements</h1>
-        <p style={s.subtitle}>Suivi des transactions et revenus</p>
+        <div>
+          <h1 style={s.title}>Paiements</h1>
+          <p style={s.subtitle}>Suivi des transactions et revenus</p>
+        </div>
+        <div style={s.btnRow}>
+          <button style={s.archiveAllBtn} onClick={() => setConfirmModal({ type: 'archive' })}><Archive size={15} /> Tout archiver</button>
+          <button style={s.deleteAllBtn} onClick={() => setConfirmModal({ type: 'delete' })}><Trash2 size={15} /> Tout supprimer</button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -146,8 +172,40 @@ export default function Paiements() {
       <DataTable<Paiement>
         columns={columns}
         data={filtered}
+        onRowClick={(row) => setSelected(row)}
         searchPlaceholder="Rechercher par ID, commande..."
       />
+
+      {/* Detail modal */}
+      <Modal open={!!selected} onClose={() => setSelected(null)} title={`Paiement ${selected?.id.slice(0, 8) || ''}`} width={500}>
+        {selected && (
+          <div>
+            <div style={s.detailRow}><span style={s.detailLabel}>Status</span><StatusBadge status={selected.status} /></div>
+            <div style={s.detailRow}><span style={s.detailLabel}>Commande</span><span style={{ ...s.detailValue, color: '#2E86DE', fontWeight: 600 }}>{selected.commandeId}</span></div>
+            <div style={s.detailRow}><span style={s.detailLabel}>Montant</span><span style={{ ...s.detailValue, fontWeight: 700, fontSize: 16 }}>{(selected.montant || 0).toFixed(2)} EUR</span></div>
+            <div style={s.detailRow}><span style={s.detailLabel}>Methode</span><span style={s.detailValue}>{methodeLabels[selected.methode] || selected.methode}</span></div>
+            <div style={s.detailRow}><span style={s.detailLabel}>Date</span><span style={s.detailValue}>{
+              (selected.createdAt instanceof Date ? selected.createdAt : (selected.createdAt as any)?.toDate?.() ?? new Date()).toLocaleString('fr-FR')
+            }</span></div>
+            <div style={s.actionBtns}>
+              <button style={s.archiveAllBtn} onClick={() => setConfirmModal({ type: 'archive', id: selected.id })}><Archive size={14} /> Archiver</button>
+              <button style={s.deleteAllBtn} onClick={() => setConfirmModal({ type: 'delete', id: selected.id })}><Trash2 size={14} /> Supprimer</button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Confirm modal */}
+      <Modal open={!!confirmModal} onClose={() => setConfirmModal(null)} title={confirmModal?.type === 'delete' ? 'Confirmer la suppression' : 'Confirmer l\'archivage'} width={420}
+        footer={<><ModalButton onClick={() => setConfirmModal(null)} variant="secondary">Annuler</ModalButton><ModalButton onClick={handleAction} variant={confirmModal?.type === 'delete' ? 'danger' : 'primary'} disabled={loading}>{loading ? 'En cours...' : confirmModal?.type === 'delete' ? 'Supprimer' : 'Archiver'}</ModalButton></>}>
+        <p style={{ fontSize: 14, color: '#1a1a2e', textAlign: 'center', lineHeight: 1.6 }}>
+          {confirmModal?.id
+            ? `Voulez-vous ${confirmModal.type === 'delete' ? 'supprimer definitivement' : 'archiver'} ce paiement ?`
+            : `Voulez-vous ${confirmModal?.type === 'delete' ? 'supprimer definitivement' : 'archiver'} tous les paiements ?`}
+        </p>
+      </Modal>
+
+      {toast && <div style={s.toast} onClick={() => setToast(null)}>{toast}</div>}
     </div>
   );
 }

@@ -12,6 +12,8 @@ import {
   AlertTriangle,
   LogOut,
   ChevronRight,
+  Menu,
+  X,
 } from 'lucide-react';
 
 const navItems = [
@@ -24,102 +26,10 @@ const navItems = [
   { to: '/litiges', label: 'Litiges', icon: AlertTriangle },
 ];
 
-const styles = {
-  sidebar: {
-    width: 260,
-    height: '100vh',
-    background: 'linear-gradient(180deg, #1B3A5C 0%, #132a44 100%)',
-    color: '#ffffff',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    position: 'fixed' as const,
-    left: 0,
-    top: 0,
-    zIndex: 100,
-    boxShadow: '2px 0 12px rgba(0,0,0,0.15)',
-  },
-  logoSection: {
-    padding: '20px 16px 16px',
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    gap: 10,
-  },
-  logoBg: {
-    background: '#ffffff',
-    borderRadius: 12,
-    padding: '10px 16px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoImg: {
-    width: 170,
-    height: 'auto' as const,
-  },
-  logoSub: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.5)',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '2px',
-    fontWeight: 500 as const,
-  },
-  nav: {
-    flex: 1,
-    padding: '16px 12px',
-    overflowY: 'auto' as const,
-  },
-  navLink: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: '11px 14px',
-    borderRadius: 8,
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 14,
-    fontWeight: 500 as const,
-    transition: 'all 0.2s ease',
-    marginBottom: 2,
-    textDecoration: 'none',
-  },
-  navLinkActive: {
-    background: 'rgba(46,134,222,0.2)',
-    color: '#ffffff',
-    boxShadow: 'inset 3px 0 0 #2E86DE',
-  },
-  navLinkHover: {
-    background: 'rgba(255,255,255,0.08)',
-    color: '#ffffff',
-  },
-  chevron: {
-    marginLeft: 'auto',
-    opacity: 0.4,
-  },
-  footer: {
-    padding: '16px 12px',
-    borderTop: '1px solid rgba(255,255,255,0.1)',
-  },
-  logoutBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: '11px 14px',
-    borderRadius: 8,
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 14,
-    fontWeight: 500 as const,
-    width: '100%',
-    transition: 'all 0.2s ease',
-    cursor: 'pointer',
-    border: 'none',
-    background: 'none',
-  },
-};
-
 export default function Sidebar() {
   const navigate = useNavigate();
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
   const handleLogout = async () => {
     try {
@@ -130,57 +40,197 @@ export default function Sidebar() {
     navigate('/login');
   };
 
+  const closeMobile = () => setMobileOpen(false);
+
   return (
-    <div style={styles.sidebar}>
-      {/* Logo */}
-      <div style={styles.logoSection}>
-        <div style={styles.logoBg}>
-          <img src="/logo.png" alt="Coliway" style={styles.logoImg} />
-        </div>
-        <div style={styles.logoSub}>Administration</div>
-      </div>
+    <>
+      {/* Mobile hamburger button */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        style={{
+          position: 'fixed',
+          top: 12,
+          left: 12,
+          zIndex: 200,
+          width: 42,
+          height: 42,
+          borderRadius: 10,
+          background: '#1B3A5C',
+          color: '#fff',
+          border: 'none',
+          cursor: 'pointer',
+          display: 'none',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+        }}
+        className="sidebar-hamburger"
+      >
+        <Menu size={22} />
+      </button>
 
-      {/* Navigation */}
-      <nav style={styles.nav}>
-        {navItems.map((item, idx) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            onMouseEnter={() => setHoveredIndex(idx)}
-            onMouseLeave={() => setHoveredIndex(null)}
-            style={({ isActive }) => ({
-              ...styles.navLink,
-              ...(isActive ? styles.navLinkActive : {}),
-              ...(hoveredIndex === idx && !isActive ? styles.navLinkHover : {}),
-            })}
-          >
-            <item.icon size={19} />
-            <span>{item.label}</span>
-            <ChevronRight size={14} style={styles.chevron} />
-          </NavLink>
-        ))}
-      </nav>
+      {/* Overlay for mobile */}
+      {mobileOpen && (
+        <div
+          onClick={closeMobile}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 299,
+          }}
+          className="sidebar-overlay"
+        />
+      )}
 
-      {/* Logout */}
-      <div style={styles.footer}>
+      {/* Sidebar */}
+      <div
+        className={`sidebar ${mobileOpen ? 'sidebar-open' : ''}`}
+        style={{
+          width: 260,
+          height: '100vh',
+          background: 'linear-gradient(180deg, #1B3A5C 0%, #132a44 100%)',
+          color: '#ffffff',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          zIndex: 300,
+          boxShadow: '2px 0 12px rgba(0,0,0,0.15)',
+          transition: 'transform 0.25s ease',
+        }}
+      >
+        {/* Mobile close button */}
         <button
-          onClick={handleLogout}
-          style={styles.logoutBtn}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background =
-              'rgba(231,76,60,0.2)';
-            (e.currentTarget as HTMLButtonElement).style.color = '#E74C3C';
+          onClick={closeMobile}
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: 'rgba(255,255,255,0.1)',
+            color: '#fff',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'none',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = 'none';
-            (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.6)';
-          }}
+          className="sidebar-close"
         >
-          <LogOut size={19} />
-          <span>Se deconnecter</span>
+          <X size={18} />
         </button>
+
+        {/* Logo */}
+        <div style={{
+          padding: '20px 16px 16px',
+          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 10,
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: 12,
+            padding: '10px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <img src="/logo.png" alt="Coliway" style={{ width: 170, height: 'auto' }} />
+          </div>
+          <div style={{
+            fontSize: 11,
+            color: 'rgba(255,255,255,0.5)',
+            textTransform: 'uppercase',
+            letterSpacing: '2px',
+            fontWeight: 500,
+          }}>Administration</div>
+        </div>
+
+        {/* Navigation */}
+        <nav style={{ flex: 1, padding: '16px 12px', overflowY: 'auto' }}>
+          {navItems.map((item, idx) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              onClick={closeMobile}
+              onMouseEnter={() => setHoveredIndex(idx)}
+              onMouseLeave={() => setHoveredIndex(null)}
+              style={({ isActive }) => ({
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '11px 14px',
+                borderRadius: 8,
+                color: isActive ? '#ffffff' : 'rgba(255,255,255,0.7)',
+                fontSize: 14,
+                fontWeight: 500,
+                transition: 'all 0.2s ease',
+                marginBottom: 2,
+                textDecoration: 'none',
+                ...(isActive
+                  ? { background: 'rgba(46,134,222,0.2)', boxShadow: 'inset 3px 0 0 #2E86DE' }
+                  : hoveredIndex === idx
+                    ? { background: 'rgba(255,255,255,0.08)', color: '#ffffff' }
+                    : {}),
+              })}
+            >
+              <item.icon size={19} />
+              <span>{item.label}</span>
+              <ChevronRight size={14} style={{ marginLeft: 'auto', opacity: 0.4 }} />
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* Logout */}
+        <div style={{ padding: '16px 12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <button
+            onClick={handleLogout}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '11px 14px',
+              borderRadius: 8,
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: 14,
+              fontWeight: 500,
+              width: '100%',
+              transition: 'all 0.2s ease',
+              cursor: 'pointer',
+              border: 'none',
+              background: 'none',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'rgba(231,76,60,0.2)';
+              (e.currentTarget as HTMLButtonElement).style.color = '#E74C3C';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'none';
+              (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.6)';
+            }}
+          >
+            <LogOut size={19} />
+            <span>Se deconnecter</span>
+          </button>
+        </div>
       </div>
-    </div>
+
+      {/* Responsive CSS */}
+      <style>{`
+        @media (max-width: 768px) {
+          .sidebar-hamburger { display: flex !important; }
+          .sidebar-close { display: flex !important; }
+          .sidebar { transform: translateX(-100%); }
+          .sidebar.sidebar-open { transform: translateX(0); }
+        }
+      `}</style>
+    </>
   );
 }

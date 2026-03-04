@@ -28,6 +28,157 @@ function getPaypalClient() {
 }
 
 // ============================================================
+// Helper: getOrCreateStripeCustomer
+// ============================================================
+async function getOrCreateStripeCustomer(stripe, uid) {
+  const userRef = db.collection("users").doc(uid);
+  const userDoc = await userRef.get();
+
+  if (!userDoc.exists) {
+    throw new HttpsError("not-found", "Utilisateur introuvable.");
+  }
+
+  const userData = userDoc.data();
+
+  if (userData.stripeCustomerId) {
+    return userData.stripeCustomerId;
+  }
+
+  const customer = await stripe.customers.create({
+    metadata: { firebaseUID: uid },
+    email: userData.email || undefined,
+    name: userData.prenom && userData.nom ? `${userData.prenom} ${userData.nom}` : undefined,
+  });
+
+  await userRef.update({ stripeCustomerId: customer.id });
+
+  return customer.id;
+}
+
+// ============================================================
+// createSetupIntent - Creates a Stripe SetupIntent for saving a card
+// ============================================================
+exports.createSetupIntent = onCall(
+  { secrets: [stripeSecretKey], region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
+    }
+
+    try {
+      const stripe = require("stripe")(stripeSecretKey.value());
+      const customer = await getOrCreateStripeCustomer(stripe, request.auth.uid);
+
+      const setupIntent = await stripe.setupIntents.create({
+        customer,
+        payment_method_types: ["card"],
+      });
+
+      logger.info(`SetupIntent cree: ${setupIntent.id} pour user: ${request.auth.uid}`);
+
+      return {
+        clientSecret: setupIntent.client_secret,
+        setupIntentId: setupIntent.id,
+      };
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error("Erreur lors de la creation du SetupIntent:", error);
+      throw new HttpsError("internal", "Erreur lors de la creation du SetupIntent.");
+    }
+  }
+);
+
+// ============================================================
+// listPaymentMethods - Lists saved cards for the current user
+// ============================================================
+exports.listPaymentMethods = onCall(
+  { secrets: [stripeSecretKey], region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
+    }
+
+    try {
+      const userDoc = await db.collection("users").doc(request.auth.uid).get();
+
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "Utilisateur introuvable.");
+      }
+
+      const userData = userDoc.data();
+
+      if (!userData.stripeCustomerId) {
+        return [];
+      }
+
+      const stripe = require("stripe")(stripeSecretKey.value());
+      const paymentMethods = await stripe.paymentMethods.list({
+        customer: userData.stripeCustomerId,
+        type: "card",
+      });
+
+      return paymentMethods.data.map((pm) => ({
+        id: pm.id,
+        brand: pm.card.brand,
+        last4: pm.card.last4,
+        expMonth: pm.card.exp_month,
+        expYear: pm.card.exp_year,
+      }));
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error("Erreur lors de la recuperation des moyens de paiement:", error);
+      throw new HttpsError("internal", "Erreur lors de la recuperation des moyens de paiement.");
+    }
+  }
+);
+
+// ============================================================
+// deletePaymentMethod - Detaches a saved payment method
+// ============================================================
+exports.deletePaymentMethod = onCall(
+  { secrets: [stripeSecretKey], region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
+    }
+
+    const { paymentMethodId } = request.data;
+
+    if (!paymentMethodId) {
+      throw new HttpsError("invalid-argument", "L'identifiant du moyen de paiement est requis.");
+    }
+
+    try {
+      const stripe = require("stripe")(stripeSecretKey.value());
+
+      // Verify ownership
+      const userDoc = await db.collection("users").doc(request.auth.uid).get();
+      const userData = userDoc.data();
+
+      if (!userData || !userData.stripeCustomerId) {
+        throw new HttpsError("permission-denied", "Aucun customer Stripe associe.");
+      }
+
+      const pm = await stripe.paymentMethods.retrieve(paymentMethodId);
+
+      if (pm.customer !== userData.stripeCustomerId) {
+        throw new HttpsError("permission-denied", "Ce moyen de paiement ne vous appartient pas.");
+      }
+
+      await stripe.paymentMethods.detach(paymentMethodId);
+
+      logger.info(`PaymentMethod supprime: ${paymentMethodId} pour user: ${request.auth.uid}`);
+
+      return { success: true };
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error("Erreur lors de la suppression du moyen de paiement:", error);
+      throw new HttpsError("internal", "Erreur lors de la suppression du moyen de paiement.");
+    }
+  }
+);
+
+// ============================================================
 // createPaymentIntent - Creates a Stripe PaymentIntent
 // ============================================================
 exports.createPaymentIntent = onCall(
@@ -37,7 +188,7 @@ exports.createPaymentIntent = onCall(
       throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
     }
 
-    const { commandeId, methode } = request.data;
+    const { commandeId, methode, paymentMethodId } = request.data;
 
     if (!commandeId) {
       throw new HttpsError("invalid-argument", "L'identifiant de la commande est requis.");
@@ -77,18 +228,28 @@ exports.createPaymentIntent = onCall(
       // Initialiser Stripe
       const stripe = require("stripe")(stripeSecretKey.value());
 
+      // Associer un customer Stripe
+      const customer = await getOrCreateStripeCustomer(stripe, request.auth.uid);
+
       // Creer le PaymentIntent (montant en centimes)
       const montantCentimes = Math.round(commandeData.prix * 100);
 
-      const paymentIntent = await stripe.paymentIntents.create({
+      const intentParams = {
         amount: montantCentimes,
         currency: "eur",
+        customer,
         metadata: {
           commandeId: commandeId,
           clientId: request.auth.uid,
         },
         description: `Coliway - Commande ${commandeId}`,
-      });
+      };
+
+      if (paymentMethodId) {
+        intentParams.payment_method = paymentMethodId;
+      }
+
+      const paymentIntent = await stripe.paymentIntents.create(intentParams);
 
       // Sauvegarder les infos de paiement
       const paiementData = {

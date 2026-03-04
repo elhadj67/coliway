@@ -31,7 +31,6 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="coliway"/>
         <data android:scheme="com.coliway.app"/>
-        <data android:scheme="exp+coliway"/>
       </intent-filter>
     </activity>
     <uses-library android:name="org.apache.http.legacy" android:required="false"/>

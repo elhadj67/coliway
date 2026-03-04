@@ -14,8 +14,7 @@ import { getLivreurOrders, Order } from '@/services/orders';
 import { ORDER_STATUS, OrderStatus, COLIS_TYPES } from '@/constants/config';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { Timestamp } from 'firebase/firestore';
-
-const COMMISSION_RATE = 0.20;
+import { fetchCommissionRate, COMMISSION_RATE as DEFAULT_COMMISSION_RATE } from '@/services/gains';
 
 type FilterTab = 'toutes' | 'livrees' | 'annulees';
 
@@ -57,18 +56,19 @@ function getColisLabel(typeId: string): string {
   return found ? found.label : typeId;
 }
 
-function getEarnings(order: Order): number {
+function getEarnings(order: Order, commissionRate: number): number {
   const price = order.prixFinal || order.prixEstime || 0;
-  return price * (1 - COMMISSION_RATE);
+  return price * (1 - commissionRate);
 }
 
 interface HistoryOrderCardProps {
   order: Order;
+  commissionRate: number;
 }
 
-const HistoryOrderCard: React.FC<HistoryOrderCardProps> = ({ order }) => {
+const HistoryOrderCard: React.FC<HistoryOrderCardProps> = ({ order, commissionRate }) => {
   const statusConfig = ORDER_STATUS[order.status];
-  const earnings = getEarnings(order);
+  const earnings = getEarnings(order, commissionRate);
 
   return (
     <View style={styles.orderCard}>
@@ -136,6 +136,11 @@ export default function HistoriqueScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterTab>('toutes');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [commissionRate, setCommissionRate] = useState(DEFAULT_COMMISSION_RATE);
+
+  useEffect(() => {
+    fetchCommissionRate().then(setCommissionRate);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -167,7 +172,7 @@ export default function HistoriqueScreen() {
   const totalCourses = allOrders.filter((o) => o.status === 'livree').length;
   const totalGains = allOrders
     .filter((o) => o.status === 'livree')
-    .reduce((sum, o) => sum + getEarnings(o), 0);
+    .reduce((sum, o) => sum + getEarnings(o, commissionRate), 0);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -240,7 +245,7 @@ export default function HistoriqueScreen() {
       <FlatList
         data={filteredOrders}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <HistoryOrderCard order={item} />}
+        renderItem={({ item }) => <HistoryOrderCard order={item} commissionRate={commissionRate} />}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmptyList}
         contentContainerStyle={styles.listContent}

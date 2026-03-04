@@ -17,41 +17,24 @@ import {
   Users,
   Clock,
   ArrowRight,
+  Trash2,
+  Archive,
+  AlertTriangle,
 } from 'lucide-react';
 import StatsCard from '@/components/StatsCard';
 import StatusBadge from '@/components/StatusBadge';
-import { getStats } from '@/services/api';
-
-// Mock data for charts
-const commandesParJour = [
-  { jour: 'Lun', commandes: 42 },
-  { jour: 'Mar', commandes: 58 },
-  { jour: 'Mer', commandes: 35 },
-  { jour: 'Jeu', commandes: 67 },
-  { jour: 'Ven', commandes: 82 },
-  { jour: 'Sam', commandes: 54 },
-  { jour: 'Dim', commandes: 37 },
-];
-
-const revenusParSemaine = [
-  { semaine: 'S1', revenus: 4200 },
-  { semaine: 'S2', revenus: 5800 },
-  { semaine: 'S3', revenus: 5100 },
-  { semaine: 'S4', revenus: 6700 },
-  { semaine: 'S5', revenus: 7200 },
-  { semaine: 'S6', revenus: 6400 },
-  { semaine: 'S7', revenus: 8100 },
-  { semaine: 'S8', revenus: 7600 },
-];
-
-const recentCommandes = [
-  { id: 'CMD-1247', client: 'Marie Dupont', livreur: 'Pierre Martin', status: 'en_transit', prix: 18.50, date: '14:32' },
-  { id: 'CMD-1246', client: 'Jean Bernard', livreur: 'Sophie Leroy', status: 'livree', prix: 24.00, date: '13:15' },
-  { id: 'CMD-1245', client: 'Alice Moreau', livreur: '-', status: 'en_attente', prix: 12.00, date: '12:48' },
-  { id: 'CMD-1244', client: 'Thomas Petit', livreur: 'Luc Garnier', status: 'enlevee', prix: 35.50, date: '11:20' },
-  { id: 'CMD-1243', client: 'Emma Robert', livreur: 'Marc Durand', status: 'livree', prix: 15.00, date: '10:45' },
-  { id: 'CMD-1242', client: 'Hugo Simon', livreur: '-', status: 'annulee', prix: 22.00, date: '09:30' },
-];
+import Modal, { ModalButton } from '@/components/Modal';
+import {
+  getStats,
+  getRecentCommandes,
+  RecentCommande,
+  deleteCommandes,
+  archiveCommandes,
+  deleteLivreurs,
+  archiveLivreurs,
+  deleteClients,
+  archiveClients,
+} from '@/services/api';
 
 const s = {
   page: {
@@ -148,17 +131,109 @@ const s = {
     color: '#1a1a2e',
     borderBottom: '1px solid #f5f5f5',
   },
+  dataCard: {
+    background: '#ffffff',
+    borderRadius: 12,
+    padding: '20px 24px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+    border: '1px solid #f0f0f0',
+    marginTop: 28,
+  },
+  dataTitle: {
+    fontSize: 15,
+    fontWeight: 600 as const,
+    color: '#1a1a2e',
+    marginBottom: 4,
+  },
+  dataSubtitle: {
+    fontSize: 13,
+    color: '#6c757d',
+    marginBottom: 20,
+  },
+  dataGrid: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 12,
+  },
+  dataItem: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 16px',
+    background: '#f8f9fa',
+    borderRadius: 10,
+    border: '1px solid #f0f0f0',
+  },
+  dataItemLabel: {
+    fontSize: 14,
+    fontWeight: 600 as const,
+    color: '#1a1a2e',
+  },
+  dataItemActions: {
+    display: 'flex',
+    gap: 8,
+  },
+  archiveBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '7px 14px',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500 as const,
+    color: '#2E86DE',
+    background: '#f0f7ff',
+    border: '1px solid #d0e4f7',
+    cursor: 'pointer',
+    transition: 'background 0.15s',
+  },
+  deleteBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '7px 14px',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500 as const,
+    color: '#E74C3C',
+    background: '#fff5f5',
+    border: '1px solid #f5d0d0',
+    cursor: 'pointer',
+    transition: 'background 0.15s',
+  },
+  toast: {
+    position: 'fixed' as const,
+    bottom: 24,
+    right: 24,
+    background: '#1a1a2e',
+    color: '#fff',
+    padding: '12px 20px',
+    borderRadius: 10,
+    fontSize: 14,
+    fontWeight: 500 as const,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+    cursor: 'pointer',
+    zIndex: 999,
+    animation: 'fadeIn 0.2s ease',
+  },
 };
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
-    totalCA: 45230,
-    commandesAujourdhui: 37,
-    livreursActifs: 124,
-    clientsInscrits: 1856,
+    totalCA: 0,
+    commandesAujourdhui: 0,
+    livreursActifs: 0,
+    clientsInscrits: 0,
   });
+  const [commandesParJour, setCommandesParJour] = useState<{ jour: string; commandes: number }[]>([]);
+  const [revenusParSemaine, setRevenusParSemaine] = useState<{ semaine: string; revenus: number }[]>([]);
+  const [recentCommandes, setRecentCommandes] = useState<RecentCommande[]>([]);
 
-  useEffect(() => {
+  const [modal, setModal] = useState<{ type: 'delete' | 'archive'; target: string } | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionResult, setActionResult] = useState<string | null>(null);
+
+  const refreshStats = () => {
     getStats().then((data) => {
       setStats({
         totalCA: data.totalCA,
@@ -166,8 +241,46 @@ export default function Dashboard() {
         livreursActifs: data.livreursActifs,
         clientsInscrits: data.clientsInscrits,
       });
+      setCommandesParJour(data.commandesParJour);
+      setRevenusParSemaine(data.revenusParSemaine);
     });
+    getRecentCommandes().then(setRecentCommandes);
+  };
+
+  useEffect(() => {
+    refreshStats();
   }, []);
+
+  const targetLabels: Record<string, string> = {
+    commandes: 'Commandes',
+    livreurs: 'Livreurs',
+    clients: 'Clients',
+  };
+
+  const handleConfirmAction = async () => {
+    if (!modal) return;
+    setActionLoading(true);
+    try {
+      let count = 0;
+      if (modal.type === 'delete') {
+        if (modal.target === 'commandes') count = await deleteCommandes();
+        else if (modal.target === 'livreurs') count = await deleteLivreurs();
+        else if (modal.target === 'clients') count = await deleteClients();
+      } else {
+        if (modal.target === 'commandes') count = await archiveCommandes();
+        else if (modal.target === 'livreurs') count = await archiveLivreurs();
+        else if (modal.target === 'clients') count = await archiveClients();
+      }
+      const verb = modal.type === 'delete' ? 'supprime(s)' : 'archive(s)';
+      setActionResult(`${count} ${targetLabels[modal.target]} ${verb} avec succes.`);
+      refreshStats();
+    } catch {
+      setActionResult('Erreur lors de l\'operation. Veuillez reessayer.');
+    } finally {
+      setActionLoading(false);
+      setModal(null);
+    }
+  };
 
   return (
     <div style={s.page} className="fade-in">
@@ -313,21 +426,113 @@ export default function Dashboard() {
             </tr>
           </thead>
           <tbody>
-            {recentCommandes.map((cmd) => (
-              <tr key={cmd.id}>
-                <td style={{ ...s.td, fontWeight: 600, color: '#2E86DE' }}>{cmd.id}</td>
-                <td style={s.td}>{cmd.client}</td>
-                <td style={s.td}>{cmd.livreur}</td>
-                <td style={{ ...s.td, fontWeight: 600 }}>{cmd.prix.toFixed(2)} EUR</td>
-                <td style={s.td}>
-                  <StatusBadge status={cmd.status} size="sm" />
+            {recentCommandes.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ ...s.td, textAlign: 'center', color: '#6c757d', padding: '24px 16px' }}>
+                  Aucune commande
                 </td>
-                <td style={{ ...s.td, color: '#6c757d' }}>{cmd.date}</td>
               </tr>
-            ))}
+            ) : (
+              recentCommandes.map((cmd) => (
+                <tr key={cmd.id}>
+                  <td style={{ ...s.td, fontWeight: 600, color: '#2E86DE' }}>{cmd.id.slice(0, 8)}</td>
+                  <td style={s.td}>{cmd.clientNom}</td>
+                  <td style={s.td}>{cmd.livreurNom}</td>
+                  <td style={{ ...s.td, fontWeight: 600 }}>{cmd.prix.toFixed(2)} EUR</td>
+                  <td style={s.td}>
+                    <StatusBadge status={cmd.status} size="sm" />
+                  </td>
+                  <td style={{ ...s.td, color: '#6c757d' }}>{cmd.heure}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* Gestion des données */}
+      <div style={s.dataCard}>
+        <h3 style={s.dataTitle}>
+          <AlertTriangle size={16} style={{ marginRight: 8, verticalAlign: 'text-bottom', color: '#F39C12' }} />
+          Gestion des donnees
+        </h3>
+        <p style={s.dataSubtitle}>Supprimer ou archiver les donnees affichees sur le dashboard.</p>
+
+        <div style={s.dataGrid}>
+          {(['commandes', 'livreurs', 'clients'] as const).map((target) => (
+            <div key={target} style={s.dataItem}>
+              <span style={s.dataItemLabel}>{targetLabels[target]}</span>
+              <div style={s.dataItemActions}>
+                <button
+                  style={s.archiveBtn}
+                  onClick={() => setModal({ type: 'archive', target })}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#e8f4fd'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#f0f7ff'; }}
+                >
+                  <Archive size={14} /> Archiver
+                </button>
+                <button
+                  style={s.deleteBtn}
+                  onClick={() => setModal({ type: 'delete', target })}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#fde8e8'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#fff5f5'; }}
+                >
+                  <Trash2 size={14} /> Supprimer
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Result toast */}
+      {actionResult && (
+        <div style={s.toast} onClick={() => setActionResult(null)}>
+          {actionResult}
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      <Modal
+        open={!!modal}
+        onClose={() => setModal(null)}
+        title={modal?.type === 'delete' ? 'Confirmer la suppression' : 'Confirmer l\'archivage'}
+        width={440}
+        footer={
+          <>
+            <ModalButton onClick={() => setModal(null)} variant="secondary">Annuler</ModalButton>
+            <ModalButton
+              onClick={handleConfirmAction}
+              variant={modal?.type === 'delete' ? 'danger' : 'primary'}
+              disabled={actionLoading}
+            >
+              {actionLoading
+                ? 'En cours...'
+                : modal?.type === 'delete'
+                  ? 'Supprimer'
+                  : 'Archiver'}
+            </ModalButton>
+          </>
+        }
+      >
+        <div style={{ textAlign: 'center', padding: '10px 0' }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%',
+            background: modal?.type === 'delete' ? '#fff5f5' : '#f0f7ff',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: 16,
+          }}>
+            {modal?.type === 'delete'
+              ? <Trash2 size={26} color="#E74C3C" />
+              : <Archive size={26} color="#2E86DE" />}
+          </div>
+          <p style={{ fontSize: 15, color: '#1a1a2e', lineHeight: 1.6 }}>
+            {modal?.type === 'delete'
+              ? <>Vous etes sur le point de <strong>supprimer definitivement</strong> toutes les donnees <strong>{modal?.target && targetLabels[modal.target]}</strong>. Cette action est irreversible.</>
+              : <>Vous etes sur le point d'<strong>archiver</strong> toutes les donnees <strong>{modal?.target && targetLabels[modal.target]}</strong>. Elles seront deplacees dans la collection <code>{modal?.target}_archive</code>.</>}
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

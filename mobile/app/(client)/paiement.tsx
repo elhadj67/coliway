@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,14 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { CardField, useStripe } from '@stripe/stripe-react-native';
 import Button from '../../components/Button';
-import Input from '../../components/Input';
 import * as WebBrowser from 'expo-web-browser';
 import {
   createPaymentIntent,
-  confirmPayment,
   createPaypalPayment,
+  listPaymentMethods,
+  SavedCard,
 } from '../../services/payment';
 import { COLIS_TYPES } from '../../constants/config';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../constants/theme';
@@ -26,6 +27,7 @@ type PaymentState = 'input' | 'processing' | 'success' | 'failure';
 
 export default function PaiementScreen() {
   const router = useRouter();
+  const { confirmPayment: stripeConfirmPayment } = useStripe();
   const params = useLocalSearchParams<{
     orderId: string;
     montant: string;
@@ -41,72 +43,74 @@ export default function PaiementScreen() {
   const [paymentState, setPaymentState] = useState<PaymentState>('input');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCVC, setCardCVC] = useState('');
-  const [cardHolder, setCardHolder] = useState('');
+  // Saved cards
+  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
+  const [loadingCards, setLoadingCards] = useState(true);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [useNewCard, setUseNewCard] = useState(false);
+  const [cardFieldComplete, setCardFieldComplete] = useState(false);
 
-  const formatCardNumber = (text: string): string => {
-    const cleaned = text.replace(/\D/g, '').slice(0, 16);
-    const groups = cleaned.match(/.{1,4}/g);
-    return groups ? groups.join(' ') : cleaned;
-  };
-
-  const formatExpiry = (text: string): string => {
-    const cleaned = text.replace(/\D/g, '').slice(0, 4);
-    if (cleaned.length >= 3) {
-      return cleaned.slice(0, 2) + '/' + cleaned.slice(2);
+  const loadCards = useCallback(async () => {
+    setLoadingCards(true);
+    try {
+      const cards = await listPaymentMethods();
+      setSavedCards(cards);
+      if (cards.length > 0) {
+        setSelectedCardId(cards[0].id);
+        setUseNewCard(false);
+      } else {
+        setUseNewCard(true);
+      }
+    } catch (error) {
+      console.error('Error loading cards:', error);
+      setUseNewCard(true);
+    } finally {
+      setLoadingCards(false);
     }
-    return cleaned;
-  };
+  }, []);
+
+  useEffect(() => {
+    loadCards();
+  }, [loadCards]);
 
   const getColisLabel = (typeId: string): string => {
     const colisType = COLIS_TYPES.find((t) => t.id === typeId);
     return colisType?.label || typeId;
   };
 
-  const validateCard = (): boolean => {
-    const cleanedNumber = cardNumber.replace(/\s/g, '');
-    if (cleanedNumber.length < 16) {
-      Alert.alert('Erreur', 'Numéro de carte invalide.');
-      return false;
-    }
-    if (cardExpiry.length < 5) {
-      Alert.alert('Erreur', "Date d'expiration invalide.");
-      return false;
-    }
-    if (cardCVC.length < 3) {
-      Alert.alert('Erreur', 'Code CVC invalide.');
-      return false;
-    }
-    if (!cardHolder.trim()) {
-      Alert.alert('Erreur', 'Veuillez saisir le nom du titulaire.');
-      return false;
-    }
-    return true;
-  };
-
   const handlePay = async () => {
-    if (paymentMethod === 'carte' && !validateCard()) return;
+    if (paymentMethod === 'carte' && useNewCard && !cardFieldComplete) {
+      Alert.alert('Erreur', 'Veuillez remplir les informations de la carte.');
+      return;
+    }
+    if (paymentMethod === 'carte' && !useNewCard && !selectedCardId) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une carte.');
+      return;
+    }
 
     setPaymentState('processing');
     setErrorMessage('');
 
     try {
       if (paymentMethod === 'carte') {
-        // Create a Stripe PaymentIntent
+        const pmId = useNewCard ? undefined : (selectedCardId ?? undefined);
+
         const { clientSecret } = await createPaymentIntent(
           orderId,
-          Math.round(montant * 100) // Stripe uses cents
+          Math.round(montant * 100),
+          pmId
         );
 
-        const result = await confirmPayment(clientSecret);
+        const { error } = await stripeConfirmPayment(clientSecret, {
+          paymentMethodType: 'Card',
+          paymentMethodData: pmId ? { paymentMethodId: pmId } : undefined,
+        });
 
-        if (result.success) {
-          setPaymentState('success');
-        } else {
-          setErrorMessage(result.error || 'Le paiement a échoué.');
+        if (error) {
+          setErrorMessage(error.message || 'Le paiement a échoué.');
           setPaymentState('failure');
+        } else {
+          setPaymentState('success');
         }
       } else {
         // PayPal flow
@@ -123,7 +127,7 @@ export default function PaiementScreen() {
         if (result.type === 'success') {
           setPaymentState('success');
         } else {
-          setErrorMessage('Paiement PayPal annule ou echoue.');
+          setErrorMessage('Paiement PayPal annulé ou échoué.');
           setPaymentState('failure');
         }
       }
@@ -364,49 +368,84 @@ export default function PaiementScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Card Input Fields */}
+        {/* Saved Cards + New Card */}
         {paymentMethod === 'carte' && (
-          <View style={styles.cardInputsContainer}>
-            <Input
-              label="Numéro de carte"
-              value={cardNumber}
-              onChangeText={(text) => setCardNumber(formatCardNumber(text))}
-              placeholder="1234 5678 9012 3456"
-              keyboardType="numeric"
-              icon="card-outline"
-            />
+          <View style={styles.cardSection}>
+            {loadingCards ? (
+              <ActivityIndicator size="small" color={Colors.primary} style={{ paddingVertical: Spacing.md }} />
+            ) : (
+              <>
+                {savedCards.map((card) => (
+                  <TouchableOpacity
+                    key={card.id}
+                    style={[
+                      styles.savedCardRow,
+                      !useNewCard && selectedCardId === card.id && styles.savedCardRowSelected,
+                    ]}
+                    onPress={() => {
+                      setSelectedCardId(card.id);
+                      setUseNewCard(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.savedCardLeft}>
+                      <View
+                        style={[
+                          styles.radio,
+                          !useNewCard && selectedCardId === card.id && styles.radioSelected,
+                        ]}
+                      >
+                        {!useNewCard && selectedCardId === card.id && (
+                          <View style={styles.radioInner} />
+                        )}
+                      </View>
+                      <Ionicons name="card" size={18} color={Colors.primary} />
+                      <Text style={styles.savedCardText}>
+                        {card.brand.toUpperCase()} **** {card.last4}
+                      </Text>
+                    </View>
+                    <Text style={styles.savedCardExpiry}>
+                      {String(card.expMonth).padStart(2, '0')}/{card.expYear}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
 
-            <Input
-              label="Titulaire de la carte"
-              value={cardHolder}
-              onChangeText={setCardHolder}
-              placeholder="NOM PRENOM"
-              icon="person-outline"
-            />
+                {/* New card option */}
+                <TouchableOpacity
+                  style={[
+                    styles.savedCardRow,
+                    useNewCard && styles.savedCardRowSelected,
+                  ]}
+                  onPress={() => setUseNewCard(true)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.savedCardLeft}>
+                    <View style={[styles.radio, useNewCard && styles.radioSelected]}>
+                      {useNewCard && <View style={styles.radioInner} />}
+                    </View>
+                    <Ionicons name="add-circle-outline" size={18} color={Colors.secondary} />
+                    <Text style={styles.newCardText}>Nouvelle carte</Text>
+                  </View>
+                </TouchableOpacity>
 
-            <View style={styles.cardRow}>
-              <View style={styles.cardRowHalf}>
-                <Input
-                  label="Expiration"
-                  value={cardExpiry}
-                  onChangeText={(text) => setCardExpiry(formatExpiry(text))}
-                  placeholder="MM/AA"
-                  keyboardType="numeric"
-                />
-              </View>
-              <View style={styles.cardRowHalf}>
-                <Input
-                  label="CVC"
-                  value={cardCVC}
-                  onChangeText={(text) =>
-                    setCardCVC(text.replace(/\D/g, '').slice(0, 4))
-                  }
-                  placeholder="123"
-                  keyboardType="numeric"
-                  secureTextEntry
-                />
-              </View>
-            </View>
+                {useNewCard && (
+                  <CardField
+                    postalCodeEnabled={false}
+                    placeholders={{ number: '4242 4242 4242 4242' }}
+                    cardStyle={{
+                      backgroundColor: Colors.background,
+                      textColor: Colors.text,
+                      borderWidth: 1,
+                      borderColor: Colors.border,
+                      borderRadius: BorderRadius.md,
+                      fontSize: 14,
+                    }}
+                    style={styles.cardField}
+                    onCardChange={(details) => setCardFieldComplete(details.complete)}
+                  />
+                )}
+              </>
+            )}
           </View>
         )}
 
@@ -585,15 +624,48 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: Colors.primary,
   },
-  cardInputsContainer: {
-    marginTop: Spacing.lg,
+  cardSection: {
+    marginTop: Spacing.md,
   },
-  cardRow: {
+  savedCardRow: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.base,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.sm,
   },
-  cardRowHalf: {
-    flex: 1,
+  savedCardRowSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(27, 58, 92, 0.03)',
+  },
+  savedCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  savedCardText: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.medium,
+    color: Colors.text,
+  },
+  savedCardExpiry: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textLight,
+  },
+  newCardText: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.medium,
+    color: Colors.secondary,
+  },
+  cardField: {
+    width: '100%',
+    height: 50,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   securePaymentBadge: {
     flexDirection: 'row',

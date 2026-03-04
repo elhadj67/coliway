@@ -22,6 +22,7 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar />
       <main
+        className="admin-main"
         style={{
           marginLeft: 260,
           flex: 1,
@@ -32,6 +33,11 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
+      <style>{`
+        @media (max-width: 768px) {
+          .admin-main { margin-left: 0 !important; }
+        }
+      `}</style>
     </div>
   );
 }

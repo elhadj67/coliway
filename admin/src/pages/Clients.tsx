@@ -1,144 +1,142 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Phone, Calendar, Package } from 'lucide-react';
+import { Mail, Phone, Calendar, Package, Trash2, Archive } from 'lucide-react';
 import DataTable, { Column } from '@/components/DataTable';
+import Modal, { ModalButton } from '@/components/Modal';
+import { getClients, getCommandes, deleteOneClient, archiveOneClient, deleteClients, archiveClients, Client, Commande } from '@/services/api';
 import StatusBadge from '@/components/StatusBadge';
-import Modal from '@/components/Modal';
-import { getClients, Client } from '@/services/api';
-
-const mockClients: Client[] = [
-  { id: 'C001', nom: 'Dupont', prenom: 'Marie', email: 'marie.dupont@email.com', telephone: '06 11 22 33 44', dateInscription: new Date('2025-03-10'), nbCommandes: 24 },
-  { id: 'C002', nom: 'Bernard', prenom: 'Jean', email: 'jean.bernard@email.com', telephone: '06 22 33 44 55', dateInscription: new Date('2025-05-22'), nbCommandes: 12 },
-  { id: 'C003', nom: 'Moreau', prenom: 'Alice', email: 'alice.moreau@email.com', telephone: '06 33 44 55 66', dateInscription: new Date('2025-07-14'), nbCommandes: 18 },
-  { id: 'C004', nom: 'Petit', prenom: 'Thomas', email: 'thomas.petit@email.com', telephone: '06 44 55 66 77', dateInscription: new Date('2025-08-03'), nbCommandes: 7 },
-  { id: 'C005', nom: 'Robert', prenom: 'Emma', email: 'emma.robert@email.com', telephone: '06 55 66 77 88', dateInscription: new Date('2025-09-18'), nbCommandes: 31 },
-  { id: 'C006', nom: 'Simon', prenom: 'Hugo', email: 'hugo.simon@email.com', telephone: '06 66 77 88 99', dateInscription: new Date('2025-10-25'), nbCommandes: 5 },
-  { id: 'C007', nom: 'Girard', prenom: 'Camille', email: 'camille.girard@email.com', telephone: '06 77 88 99 00', dateInscription: new Date('2025-11-12'), nbCommandes: 15 },
-  { id: 'C008', nom: 'Fournier', prenom: 'Lucas', email: 'lucas.fournier@email.com', telephone: '06 88 99 00 11', dateInscription: new Date('2025-12-01'), nbCommandes: 9 },
-  { id: 'C009', nom: 'Mercier', prenom: 'Lea', email: 'lea.mercier@email.com', telephone: '06 99 00 11 22', dateInscription: new Date('2026-01-15'), nbCommandes: 3 },
-  { id: 'C010', nom: 'Bonnet', prenom: 'Nathan', email: 'nathan.bonnet@email.com', telephone: '06 00 11 22 33', dateInscription: new Date('2026-02-20'), nbCommandes: 1 },
-];
-
-const mockOrders = [
-  { id: 'CMD-1247', typeColis: 'Petit Colis', prix: 18.50, status: 'en_transit', date: '28/02/2026' },
-  { id: 'CMD-1237', typeColis: 'Enveloppe', prix: 9.50, status: 'livree', date: '27/02/2026' },
-  { id: 'CMD-1225', typeColis: 'Moyen Colis', prix: 28.00, status: 'livree', date: '25/02/2026' },
-  { id: 'CMD-1210', typeColis: 'Petit Colis', prix: 14.00, status: 'livree', date: '23/02/2026' },
-];
 
 const s = {
   page: { padding: '28px 32px', maxWidth: 1400 },
-  header: { marginBottom: 24 },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap' as const, gap: 12 },
   title: { fontSize: 26, fontWeight: 700 as const, color: '#1a1a2e' },
   subtitle: { fontSize: 14, color: '#6c757d', marginTop: 2 },
+  btnRow: { display: 'flex', gap: 8 },
+  archiveAllBtn: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 16px', background: '#f0f7ff', color: '#2E86DE', borderRadius: 8, fontSize: 13, fontWeight: 500 as const, border: '1px solid #d0e4f7', cursor: 'pointer' },
+  deleteAllBtn: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 16px', background: '#fff5f5', color: '#E74C3C', borderRadius: 8, fontSize: 13, fontWeight: 500 as const, border: '1px solid #f5d0d0', cursor: 'pointer' },
   detailSection: { marginBottom: 20 },
-  detailSectionTitle: {
-    fontSize: 14, fontWeight: 600 as const, color: '#1B3A5C',
-    marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f0f0f0',
-  },
-  detailRow: { display: 'flex', gap: 16, marginBottom: 10 },
-  detailLabel: { width: 140, fontSize: 13, fontWeight: 600 as const, color: '#6c757d', flexShrink: 0 },
-  detailValue: { fontSize: 13, color: '#1a1a2e' },
-  infoCard: {
-    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-    background: '#f8f9fa', borderRadius: 8, marginBottom: 6, fontSize: 13,
-  },
-  orderRow: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '10px 14px', borderBottom: '1px solid #f5f5f5', fontSize: 13,
-  },
+  detailSectionTitle: { fontSize: 14, fontWeight: 600 as const, color: '#1B3A5C', marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f0f0f0' },
+  infoCard: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f8f9fa', borderRadius: 8, marginBottom: 6, fontSize: 13 },
+  orderRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #f5f5f5', fontSize: 13, gap: 8, flexWrap: 'wrap' as const },
+  actionBtns: { display: 'flex', gap: 8, marginTop: 20, borderTop: '1px solid #f0f0f0', paddingTop: 16 },
+  toast: { position: 'fixed' as const, bottom: 24, right: 24, background: '#1a1a2e', color: '#fff', padding: '12px 20px', borderRadius: 10, fontSize: 14, fontWeight: 500 as const, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', cursor: 'pointer', zIndex: 999 },
 };
 
 export default function Clients() {
-  const [clients, setClients] = useState<Client[]>(mockClients);
+  const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<Client | null>(null);
+  const [clientOrders, setClientOrders] = useState<Commande[]>([]);
+  const [confirmModal, setConfirmModal] = useState<{ type: 'delete' | 'archive'; id?: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
+  const fetchData = () => {
+    getClients().then(setClients);
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  // When a client is selected, fetch their orders
   useEffect(() => {
-    getClients().then((data) => {
-      if (data.length > 0) setClients(data);
-    });
-  }, []);
+    if (selected) {
+      getCommandes({}).then((all) => {
+        setClientOrders(all.filter((c) => c.clientId === selected.id).slice(0, 5));
+      });
+    } else {
+      setClientOrders([]);
+    }
+  }, [selected]);
+
+  const handleAction = async () => {
+    if (!confirmModal) return;
+    setLoading(true);
+    try {
+      if (confirmModal.id) {
+        if (confirmModal.type === 'delete') await deleteOneClient(confirmModal.id);
+        else await archiveOneClient(confirmModal.id);
+        setToast(`Client ${confirmModal.type === 'delete' ? 'supprime' : 'archive'}`);
+      } else {
+        const count = confirmModal.type === 'delete' ? await deleteClients() : await archiveClients();
+        setToast(`${count} clients ${confirmModal.type === 'delete' ? 'supprimes' : 'archives'}`);
+      }
+      setSelected(null);
+      fetchData();
+    } catch {
+      setToast('Erreur lors de l\'operation');
+    } finally {
+      setLoading(false);
+      setConfirmModal(null);
+    }
+  };
 
   const columns: Column<Client>[] = [
-    { key: 'nom', label: 'Nom', sortable: true, render: (row) => (
-      <span style={{ fontWeight: 600 }}>{row.prenom} {row.nom}</span>
-    )},
+    { key: 'nom', label: 'Nom', sortable: true, render: (row) => <span style={{ fontWeight: 600 }}>{row.prenom} {row.nom}</span> },
     { key: 'email', label: 'Email', sortable: true },
     { key: 'telephone', label: 'Telephone' },
-    { key: 'dateInscription', label: 'Date inscription', sortable: true, render: (row) => {
-      const d = row.dateInscription instanceof Date ? row.dateInscription : new Date();
+    { key: 'dateInscription', label: 'Inscription', sortable: true, render: (row) => {
+      const d = row.dateInscription instanceof Date ? row.dateInscription : row.dateInscription && 'toDate' in row.dateInscription ? (row.dateInscription as any).toDate() : new Date();
       return d.toLocaleDateString('fr-FR');
     }},
-    { key: 'nbCommandes', label: 'Nb commandes', sortable: true, width: 120, render: (row) => (
-      <span style={{
-        fontWeight: 700, color: row.nbCommandes > 10 ? '#27AE60' : '#1a1a2e',
-      }}>
-        {row.nbCommandes}
-      </span>
-    )},
+    { key: 'nbCommandes', label: 'Commandes', sortable: true, width: 110, render: (row) => <span style={{ fontWeight: 700, color: row.nbCommandes > 10 ? '#27AE60' : '#1a1a2e' }}>{row.nbCommandes}</span> },
   ];
 
   return (
     <div style={s.page} className="fade-in">
       <div style={s.header}>
-        <h1 style={s.title}>Clients</h1>
-        <p style={s.subtitle}>Gestion des comptes clients</p>
+        <div>
+          <h1 style={s.title}>Clients</h1>
+          <p style={s.subtitle}>Gestion des comptes clients</p>
+        </div>
+        <div style={s.btnRow}>
+          <button style={s.archiveAllBtn} onClick={() => setConfirmModal({ type: 'archive' })}><Archive size={15} /> Tout archiver</button>
+          <button style={s.deleteAllBtn} onClick={() => setConfirmModal({ type: 'delete' })}><Trash2 size={15} /> Tout supprimer</button>
+        </div>
       </div>
 
-      <DataTable<Client>
-        columns={columns}
-        data={clients}
-        onRowClick={(row) => setSelected(row)}
-        searchPlaceholder="Rechercher par nom, email..."
-      />
+      <DataTable<Client> columns={columns} data={clients} onRowClick={(row) => setSelected(row)} searchPlaceholder="Rechercher par nom, email..." />
 
       {/* Detail modal */}
-      <Modal
-        open={!!selected}
-        onClose={() => setSelected(null)}
-        title={selected ? `${selected.prenom} ${selected.nom}` : ''}
-        width={580}
-      >
+      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected ? `${selected.prenom} ${selected.nom}` : ''} width={580}>
         {selected && (
           <div>
-            {/* Client info */}
             <div style={s.detailSection}>
               <div style={s.detailSectionTitle}>Informations du client</div>
-              <div style={s.infoCard}>
-                <Mail size={16} color="#2E86DE" />
-                <span>{selected.email}</span>
-              </div>
-              <div style={s.infoCard}>
-                <Phone size={16} color="#27AE60" />
-                <span>{selected.telephone}</span>
-              </div>
-              <div style={s.infoCard}>
-                <Calendar size={16} color="#F39C12" />
-                <span>Inscrit le {selected.dateInscription instanceof Date
-                  ? selected.dateInscription.toLocaleDateString('fr-FR')
-                  : '-'}</span>
-              </div>
-              <div style={s.infoCard}>
-                <Package size={16} color="#8E44AD" />
-                <span style={{ fontWeight: 600 }}>{selected.nbCommandes} commandes</span>
-              </div>
+              <div style={s.infoCard}><Mail size={16} color="#2E86DE" /><span>{selected.email}</span></div>
+              <div style={s.infoCard}><Phone size={16} color="#27AE60" /><span>{selected.telephone}</span></div>
+              <div style={s.infoCard}><Calendar size={16} color="#F39C12" /><span>Inscrit le {selected.dateInscription instanceof Date ? selected.dateInscription.toLocaleDateString('fr-FR') : (selected.dateInscription as any)?.toDate?.()?.toLocaleDateString('fr-FR') ?? '-'}</span></div>
+              <div style={s.infoCard}><Package size={16} color="#8E44AD" /><span style={{ fontWeight: 600 }}>{selected.nbCommandes} commandes</span></div>
             </div>
-
-            {/* Recent orders */}
             <div style={s.detailSection}>
               <div style={s.detailSectionTitle}>Commandes recentes</div>
-              {mockOrders.map((order) => (
+              {clientOrders.length === 0 ? (
+                <div style={{ color: '#adb5bd', fontSize: 13 }}>Aucune commande</div>
+              ) : clientOrders.map((order) => (
                 <div key={order.id} style={s.orderRow}>
-                  <span style={{ fontWeight: 600, color: '#2E86DE' }}>{order.id}</span>
+                  <span style={{ fontWeight: 600, color: '#2E86DE' }}>{order.id.slice(0, 8)}</span>
                   <span style={{ color: '#6c757d' }}>{order.typeColis}</span>
-                  <span style={{ fontWeight: 600 }}>{order.prix.toFixed(2)} EUR</span>
+                  <span style={{ fontWeight: 600 }}>{(order.prix || 0).toFixed(2)} EUR</span>
                   <StatusBadge status={order.status} size="sm" />
-                  <span style={{ color: '#adb5bd', fontSize: 12 }}>{order.date}</span>
                 </div>
               ))}
+            </div>
+            <div style={s.actionBtns}>
+              <button style={s.archiveAllBtn} onClick={() => setConfirmModal({ type: 'archive', id: selected.id })}><Archive size={14} /> Archiver</button>
+              <button style={s.deleteAllBtn} onClick={() => setConfirmModal({ type: 'delete', id: selected.id })}><Trash2 size={14} /> Supprimer</button>
             </div>
           </div>
         )}
       </Modal>
+
+      {/* Confirm modal */}
+      <Modal open={!!confirmModal} onClose={() => setConfirmModal(null)} title={confirmModal?.type === 'delete' ? 'Confirmer la suppression' : 'Confirmer l\'archivage'} width={420}
+        footer={<><ModalButton onClick={() => setConfirmModal(null)} variant="secondary">Annuler</ModalButton><ModalButton onClick={handleAction} variant={confirmModal?.type === 'delete' ? 'danger' : 'primary'} disabled={loading}>{loading ? 'En cours...' : confirmModal?.type === 'delete' ? 'Supprimer' : 'Archiver'}</ModalButton></>}>
+        <p style={{ fontSize: 14, color: '#1a1a2e', textAlign: 'center', lineHeight: 1.6 }}>
+          {confirmModal?.id
+            ? `Voulez-vous ${confirmModal.type === 'delete' ? 'supprimer definitivement' : 'archiver'} ce client ?`
+            : `Voulez-vous ${confirmModal?.type === 'delete' ? 'supprimer definitivement' : 'archiver'} tous les clients ?`}
+        </p>
+      </Modal>
+
+      {toast && <div style={s.toast} onClick={() => setToast(null)}>{toast}</div>}
     </div>
   );
 }

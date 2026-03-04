@@ -8,6 +8,7 @@ export default function LivreurLayout() {
       <Stack.Screen name="gains" />
       <Stack.Screen name="profil" />
       <Stack.Screen name="chat" />
+      <Stack.Screen name="notifications" />
     </Stack>
   );
 }

@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/theme';
 
 export default function Index() {
-  const { user, profile, loading, isClient, isLivreur } = useAuth();
+  const { user, profile, loading, isAdmin, isClient, isLivreur } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -19,14 +19,16 @@ export default function Index() {
     // Wait for profile to be loaded before redirecting
     if (!profile) return;
 
-    if (isClient) {
+    if (isAdmin) {
+      router.replace('/(admin)');
+    } else if (isClient) {
       router.replace('/(client)');
     } else if (isLivreur) {
       router.replace('/(livreur)');
     } else {
       router.replace('/(client)');
     }
-  }, [user, profile, loading, isClient, isLivreur]);
+  }, [user, profile, loading, isAdmin, isClient, isLivreur]);
 
   return (
     <View style={styles.container}>

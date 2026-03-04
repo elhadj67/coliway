@@ -1,9 +1,11 @@
+import { useState, useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, StyleSheet, Image, View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
+import { subscribeToUnreadCount } from '@/services/notifications';
 
 function HeaderLogo() {
   return (
@@ -14,6 +16,34 @@ function HeaderLogo() {
         resizeMode="contain"
       />
     </View>
+  );
+}
+
+function HeaderNotifBell() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = subscribeToUnreadCount(user.uid, setUnreadCount);
+    return () => unsubscribe();
+  }, [user]);
+
+  return (
+    <TouchableOpacity
+      style={styles.headerBellButton}
+      onPress={() => router.push('/(client)/notifications')}
+    >
+      <Ionicons name="notifications-outline" size={24} color={Colors.primary} />
+      {unreadCount > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -41,6 +71,15 @@ function HeaderAvatar() {
   );
 }
 
+function HeaderRight() {
+  return (
+    <View style={styles.headerRightRow}>
+      <HeaderNotifBell />
+      <HeaderAvatar />
+    </View>
+  );
+}
+
 export default function TabsLayout() {
   return (
     <Tabs
@@ -49,7 +88,7 @@ export default function TabsLayout() {
         headerTitleStyle: styles.headerTitle,
         headerTintColor: Colors.primary,
         headerTitle: () => <HeaderLogo />,
-        headerRight: () => <HeaderAvatar />,
+        headerRight: () => <HeaderRight />,
         headerRightContainerStyle: styles.headerRightContainer,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textLight,
@@ -119,6 +158,33 @@ const styles = StyleSheet.create({
   },
   headerRightContainer: {
     paddingRight: Spacing.base,
+  },
+  headerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  headerBellButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -6,
+    backgroundColor: Colors.danger,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: Colors.white,
+    fontSize: 10,
+    fontWeight: Typography.weights.bold,
   },
   headerAvatarButton: {
     alignItems: 'center',

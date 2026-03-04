@@ -11,6 +11,7 @@ import {
   UserProfile,
   SignUpData,
 } from '@/services/auth';
+import { registerForPushNotifications } from '@/services/notifications';
 
 export interface AuthContextType {
   user: User | null;
@@ -59,6 +60,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (firebaseUser) {
         await fetchProfile(firebaseUser.uid);
+        // Fire & forget — don't block auth flow
+        registerForPushNotifications(firebaseUser.uid).catch(() => {});
       } else {
         setProfile(null);
       }
@@ -73,6 +76,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signIn = async (email: string, password: string): Promise<void> => {
     const credential = await authSignIn(email, password);
     await fetchProfile(credential.user.uid);
+    registerForPushNotifications(credential.user.uid).catch(() => {});
   };
 
   // Sign up with full user data
@@ -80,6 +84,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const { email, password, ...userData } = data;
     const credential = await authSignUp(email, password, userData);
     await fetchProfile(credential.user.uid);
+    registerForPushNotifications(credential.user.uid).catch(() => {});
   };
 
   // Sign out the current user
@@ -98,6 +103,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signInWithGoogle = async (idToken: string, role?: import('@/constants/config').UserRole): Promise<void> => {
     const credential = await authSignInWithGoogle(idToken, role);
     await fetchProfile(credential.user.uid);
+    registerForPushNotifications(credential.user.uid).catch(() => {});
   };
 
   // Refresh the user profile from Firestore

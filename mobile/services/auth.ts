@@ -35,8 +35,16 @@ export interface UserProfile {
   assurance?: string;
   note?: number;
   nombreLivraisons?: number;
+  stripeCustomerId?: string;
+  fcmToken?: string;
+  adressesSauvegardees?: SavedAddress[];
   createdAt: unknown;
   updatedAt: unknown;
+}
+
+export interface SavedAddress {
+  label: string;
+  adresse: string;
 }
 
 export interface SignUpData {

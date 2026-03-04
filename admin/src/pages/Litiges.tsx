@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { MessageCircle, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
+import { MessageCircle, RefreshCw, CheckCircle, AlertTriangle, Trash2, Archive } from 'lucide-react';
 import DataTable, { Column } from '@/components/DataTable';
 import StatusBadge from '@/components/StatusBadge';
 import Modal, { ModalButton } from '@/components/Modal';
-import { getLitiges, updateLitige, Litige } from '@/services/api';
+import { getLitiges, updateLitige, deleteOneLitige, archiveOneLitige, deleteLitiges, archiveLitiges, Litige } from '@/services/api';
 
 const statusTabs = [
   { key: 'tous', label: 'Tous' },
@@ -13,50 +13,14 @@ const statusTabs = [
   { key: 'ferme', label: 'Fermes' },
 ];
 
-const mockLitiges: Litige[] = [
-  {
-    id: 'LIT-201', commandeId: 'CMD-1236', clientId: 'c3', clientNom: 'Alice Moreau',
-    livreurId: 'l4', livreurNom: 'Marc Durand', motif: 'Colis endommage',
-    description: 'Le colis est arrive avec des dommages visibles sur l\'emballage. Le contenu (vase en ceramique) est casse.',
-    status: 'ouvert', createdAt: new Date('2026-02-27T14:30:00'),
-  },
-  {
-    id: 'LIT-200', commandeId: 'CMD-1230', clientId: 'c6', clientNom: 'Hugo Simon',
-    livreurId: 'l1', livreurNom: 'Pierre Martin', motif: 'Livraison non effectuee',
-    description: 'Le livreur indique avoir livre mais le client n\'a rien recu. Pas de photo de livraison.',
-    status: 'en_cours', createdAt: new Date('2026-02-26T10:15:00'),
-  },
-  {
-    id: 'LIT-199', commandeId: 'CMD-1218', clientId: 'c1', clientNom: 'Marie Dupont',
-    livreurId: 'l5', livreurNom: 'Antoine Roux', motif: 'Retard de livraison',
-    description: 'Livraison prevue a 14h, effectuee a 18h30. Le client demande un dedommagement.',
-    status: 'resolu', createdAt: new Date('2026-02-24T09:00:00'),
-  },
-  {
-    id: 'LIT-198', commandeId: 'CMD-1210', clientId: 'c4', clientNom: 'Thomas Petit',
-    livreurId: 'l3', livreurNom: 'Luc Garnier', motif: 'Mauvais colis livre',
-    description: 'Le client a recu un colis qui ne lui etait pas destine. Confusion lors de l\'enlevement.',
-    status: 'ouvert', createdAt: new Date('2026-02-23T16:45:00'),
-  },
-  {
-    id: 'LIT-197', commandeId: 'CMD-1195', clientId: 'c5', clientNom: 'Emma Robert',
-    livreurId: 'l2', livreurNom: 'Sophie Leroy', motif: 'Comportement livreur',
-    description: 'Le client signale un comportement impoli du livreur lors de la remise du colis.',
-    status: 'ferme', createdAt: new Date('2026-02-20T11:30:00'),
-  },
-  {
-    id: 'LIT-196', commandeId: 'CMD-1188', clientId: 'c7', clientNom: 'Camille Girard',
-    livreurId: 'l1', livreurNom: 'Pierre Martin', motif: 'Surfacturation',
-    description: 'Le client estime que le prix facture ne correspond pas a la distance parcourue. Ecart de 8 EUR.',
-    status: 'en_cours', createdAt: new Date('2026-02-19T08:20:00'),
-  },
-];
-
 const s = {
   page: { padding: '28px 32px', maxWidth: 1400 },
-  header: { marginBottom: 24 },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap' as const, gap: 12 },
   title: { fontSize: 26, fontWeight: 700 as const, color: '#1a1a2e' },
   subtitle: { fontSize: 14, color: '#6c757d', marginTop: 2 },
+  btnRow: { display: 'flex', gap: 8 },
+  archiveAllBtn: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 16px', background: '#f0f7ff', color: '#2E86DE', borderRadius: 8, fontSize: 13, fontWeight: 500 as const, border: '1px solid #d0e4f7', cursor: 'pointer' },
+  deleteAllBtn: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 16px', background: '#fff5f5', color: '#E74C3C', borderRadius: 8, fontSize: 13, fontWeight: 500 as const, border: '1px solid #f5d0d0', cursor: 'pointer' },
   tabs: {
     display: 'flex', gap: 4, marginBottom: 20, background: '#ffffff',
     borderRadius: 10, padding: 4, border: '1px solid #f0f0f0', width: 'fit-content' as const,
@@ -98,33 +62,36 @@ const s = {
   timelineLine: (active: boolean) => ({
     width: 30, height: 2, background: active ? '#27AE60' : '#ddd',
   }),
+  actionBtns: { display: 'flex', gap: 8, marginTop: 20, borderTop: '1px solid #f0f0f0', paddingTop: 16 },
+  toast: { position: 'fixed' as const, bottom: 24, right: 24, background: '#1a1a2e', color: '#fff', padding: '12px 20px', borderRadius: 10, fontSize: 14, fontWeight: 500 as const, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', cursor: 'pointer', zIndex: 999 },
 };
 
 export default function Litiges() {
-  const [litiges, setLitiges] = useState<Litige[]>(mockLitiges);
+  const [litiges, setLitiges] = useState<Litige[]>([]);
   const [activeTab, setActiveTab] = useState('tous');
   const [selected, setSelected] = useState<Litige | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ type: 'delete' | 'archive'; id?: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => {
-    getLitiges().then((data) => {
-      if (data.length > 0) setLitiges(data);
-    });
-  }, []);
+  const fetchData = () => {
+    getLitiges().then(setLitiges);
+  };
+
+  useEffect(() => { fetchData(); }, []);
 
   const filtered = activeTab === 'tous'
     ? litiges
     : litiges.filter((l) => l.status === activeTab);
 
-  const handleAction = async (id: string, action: string) => {
+  const handleStatusAction = async (id: string, action: string) => {
     let newStatus: Litige['status'] = 'en_cours';
     if (action === 'resolve') newStatus = 'resolu';
     if (action === 'close') newStatus = 'ferme';
 
     try {
       await updateLitige(id, { status: newStatus });
-    } catch {
-      // Firestore may not be configured
-    }
+    } catch {}
 
     setLitiges((prev) =>
       prev.map((l) => (l.id === id ? { ...l, status: newStatus } : l))
@@ -134,12 +101,34 @@ export default function Litiges() {
     }
   };
 
+  const handleAction = async () => {
+    if (!confirmModal) return;
+    setLoading(true);
+    try {
+      if (confirmModal.id) {
+        if (confirmModal.type === 'delete') await deleteOneLitige(confirmModal.id);
+        else await archiveOneLitige(confirmModal.id);
+        setToast(`Litige ${confirmModal.type === 'delete' ? 'supprime' : 'archive'}`);
+      } else {
+        const count = confirmModal.type === 'delete' ? await deleteLitiges() : await archiveLitiges();
+        setToast(`${count} litiges ${confirmModal.type === 'delete' ? 'supprimes' : 'archives'}`);
+      }
+      setSelected(null);
+      fetchData();
+    } catch {
+      setToast('Erreur lors de l\'operation');
+    } finally {
+      setLoading(false);
+      setConfirmModal(null);
+    }
+  };
+
   const statusSteps = ['ouvert', 'en_cours', 'resolu', 'ferme'];
   const getStepIndex = (status: string) => statusSteps.indexOf(status);
 
   const columns: Column<Litige>[] = [
     { key: 'id', label: 'ID', sortable: true, width: 100, render: (row) => (
-      <span style={{ fontWeight: 600, color: '#E74C3C' }}>{row.id}</span>
+      <span style={{ fontWeight: 600, color: '#E74C3C' }}>{row.id.slice(0, 8)}</span>
     )},
     { key: 'commandeId', label: 'Commande', sortable: true, render: (row) => (
       <span style={{ color: '#2E86DE', fontWeight: 500 }}>{row.commandeId}</span>
@@ -151,7 +140,7 @@ export default function Litiges() {
       <StatusBadge status={row.status} size="sm" />
     )},
     { key: 'createdAt', label: 'Date', sortable: true, width: 100, render: (row) => {
-      const d = row.createdAt instanceof Date ? row.createdAt : new Date();
+      const d = row.createdAt instanceof Date ? row.createdAt : row.createdAt && 'toDate' in row.createdAt ? (row.createdAt as any).toDate() : new Date();
       return d.toLocaleDateString('fr-FR');
     }},
   ];
@@ -159,8 +148,14 @@ export default function Litiges() {
   return (
     <div style={s.page} className="fade-in">
       <div style={s.header}>
-        <h1 style={s.title}>Litiges</h1>
-        <p style={s.subtitle}>Gestion des reclamations et differends</p>
+        <div>
+          <h1 style={s.title}>Litiges</h1>
+          <p style={s.subtitle}>Gestion des reclamations et differends</p>
+        </div>
+        <div style={s.btnRow}>
+          <button style={s.archiveAllBtn} onClick={() => setConfirmModal({ type: 'archive' })}><Archive size={15} /> Tout archiver</button>
+          <button style={s.deleteAllBtn} onClick={() => setConfirmModal({ type: 'delete' })}><Trash2 size={15} /> Tout supprimer</button>
+        </div>
       </div>
 
       <div style={s.tabs}>
@@ -190,7 +185,7 @@ export default function Litiges() {
       <Modal
         open={!!selected}
         onClose={() => setSelected(null)}
-        title={selected ? `Litige ${selected.id}` : ''}
+        title={selected ? `Litige ${selected.id.slice(0, 8)}` : ''}
         width={620}
       >
         {selected && (
@@ -233,9 +228,7 @@ export default function Litiges() {
               <div style={s.detailRow}>
                 <span style={s.detailLabel}>Date</span>
                 <span style={s.detailValue}>
-                  {selected.createdAt instanceof Date
-                    ? selected.createdAt.toLocaleString('fr-FR')
-                    : '-'}
+                  {(selected.createdAt instanceof Date ? selected.createdAt : (selected.createdAt as any)?.toDate?.() ?? new Date()).toLocaleString('fr-FR')}
                 </span>
               </div>
             </div>
@@ -258,7 +251,7 @@ export default function Litiges() {
               </div>
             </div>
 
-            {/* Actions */}
+            {/* Status Actions */}
             {selected.status !== 'ferme' && selected.status !== 'resolu' && (
               <div>
                 <div style={s.detailSectionTitle}>Actions</div>
@@ -279,7 +272,7 @@ export default function Litiges() {
                     style={s.actionBtn('#FFF3CD', '#856404')}
                     onClick={() => {
                       if (confirm('Confirmer le remboursement pour cette commande ?')) {
-                        handleAction(selected.id, 'resolve');
+                        handleStatusAction(selected.id, 'resolve');
                       }
                     }}
                   >
@@ -287,16 +280,34 @@ export default function Litiges() {
                   </button>
                   <button
                     style={s.actionBtn('#D4EDDA', '#155724')}
-                    onClick={() => handleAction(selected.id, 'resolve')}
+                    onClick={() => handleStatusAction(selected.id, 'resolve')}
                   >
                     <CheckCircle size={16} /> Marquer resolu
                   </button>
                 </div>
               </div>
             )}
+
+            {/* Delete / Archive */}
+            <div style={s.actionBtns}>
+              <button style={s.archiveAllBtn} onClick={() => setConfirmModal({ type: 'archive', id: selected.id })}><Archive size={14} /> Archiver</button>
+              <button style={s.deleteAllBtn} onClick={() => setConfirmModal({ type: 'delete', id: selected.id })}><Trash2 size={14} /> Supprimer</button>
+            </div>
           </div>
         )}
       </Modal>
+
+      {/* Confirm modal */}
+      <Modal open={!!confirmModal} onClose={() => setConfirmModal(null)} title={confirmModal?.type === 'delete' ? 'Confirmer la suppression' : 'Confirmer l\'archivage'} width={420}
+        footer={<><ModalButton onClick={() => setConfirmModal(null)} variant="secondary">Annuler</ModalButton><ModalButton onClick={handleAction} variant={confirmModal?.type === 'delete' ? 'danger' : 'primary'} disabled={loading}>{loading ? 'En cours...' : confirmModal?.type === 'delete' ? 'Supprimer' : 'Archiver'}</ModalButton></>}>
+        <p style={{ fontSize: 14, color: '#1a1a2e', textAlign: 'center', lineHeight: 1.6 }}>
+          {confirmModal?.id
+            ? `Voulez-vous ${confirmModal.type === 'delete' ? 'supprimer definitivement' : 'archiver'} ce litige ?`
+            : `Voulez-vous ${confirmModal?.type === 'delete' ? 'supprimer definitivement' : 'archiver'} tous les litiges ?`}
+        </p>
+      </Modal>
+
+      {toast && <div style={s.toast} onClick={() => setToast(null)}>{toast}</div>}
     </div>
   );
 }

@@ -11,45 +11,70 @@ export interface PaypalPaymentResponse {
   paymentId: string;
 }
 
-/**
- * Creates a Stripe PaymentIntent by calling the backend cloud function.
- */
-export async function createPaymentIntent(
-  commandeId: string,
-  amount: number
-): Promise<PaymentIntentResponse> {
-  const createPaymentIntentFn = httpsCallable<
-    { commandeId: string; amount: number },
-    PaymentIntentResponse
-  >(functions, 'createPaymentIntent');
+export interface SavedCard {
+  id: string;
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+}
 
-  const result = await createPaymentIntentFn({ commandeId, amount });
+export interface SetupIntentResponse {
+  clientSecret: string;
+  setupIntentId: string;
+}
+
+/**
+ * Creates a Stripe SetupIntent for saving a card.
+ */
+export async function createSetupIntent(): Promise<SetupIntentResponse> {
+  const fn = httpsCallable<Record<string, never>, SetupIntentResponse>(
+    functions,
+    'createSetupIntent'
+  );
+  const result = await fn({});
   return result.data;
 }
 
 /**
- * Confirms a Stripe payment using the client secret.
- * This function should be called after the user completes the payment sheet.
- * In practice, the Stripe SDK's confirmPayment is used in the component layer.
+ * Lists saved payment methods (cards) for the current user.
  */
-export async function confirmPayment(
-  paymentIntentClientSecret: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    // The actual confirmation is done by the Stripe SDK in the UI layer.
-    // This function serves as a wrapper for any post-confirmation logic.
-    const confirmPaymentFn = httpsCallable<
-      { paymentIntentClientSecret: string },
-      { success: boolean }
-    >(functions, 'confirmPayment');
+export async function listPaymentMethods(): Promise<SavedCard[]> {
+  const fn = httpsCallable<Record<string, never>, SavedCard[]>(
+    functions,
+    'listPaymentMethods'
+  );
+  const result = await fn({});
+  return result.data;
+}
 
-    const result = await confirmPaymentFn({ paymentIntentClientSecret });
-    return { success: result.data.success };
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Erreur de paiement inconnue';
-    return { success: false, error: errorMessage };
-  }
+/**
+ * Deletes (detaches) a saved payment method.
+ */
+export async function deletePaymentMethod(paymentMethodId: string): Promise<void> {
+  const fn = httpsCallable<{ paymentMethodId: string }, { success: boolean }>(
+    functions,
+    'deletePaymentMethod'
+  );
+  await fn({ paymentMethodId });
+}
+
+/**
+ * Creates a Stripe PaymentIntent by calling the backend cloud function.
+ * Optionally pass a saved paymentMethodId to pre-attach it.
+ */
+export async function createPaymentIntent(
+  commandeId: string,
+  amount: number,
+  paymentMethodId?: string
+): Promise<PaymentIntentResponse> {
+  const createPaymentIntentFn = httpsCallable<
+    { commandeId: string; amount: number; paymentMethodId?: string },
+    PaymentIntentResponse
+  >(functions, 'createPaymentIntent');
+
+  const result = await createPaymentIntentFn({ commandeId, amount, paymentMethodId });
+  return result.data;
 }
 
 /**

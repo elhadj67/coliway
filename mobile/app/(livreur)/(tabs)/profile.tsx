@@ -388,8 +388,10 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.base,
   },
   logoutButton: {
-    marginHorizontal: Spacing.base,
     marginTop: Spacing.lg,
+    alignSelf: 'stretch',
+    marginHorizontal: Spacing.base,
+    width: undefined,
   },
   versionText: {
     textAlign: 'center',

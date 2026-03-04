@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Edit3, Save } from 'lucide-react';
 import Modal, { ModalButton } from '@/components/Modal';
-import { getPrixConfig, updatePrixConfig, PrixConfig } from '@/services/api';
+import { getPrixConfig, updatePrixConfig, PrixConfig, getCommissionRate, updateCommissionRate } from '@/services/api';
 
 const mockPrix: PrixConfig[] = [
   { id: 'enveloppe', type: 'enveloppe', label: 'Enveloppe', prixBase: 5.00, prixKm: 0.50, poidsMax: 0.5, description: 'Documents, lettres, petits plis' },
@@ -63,10 +63,18 @@ export default function Tarification() {
   const [editForm, setEditForm] = useState({ prixBase: '', prixKm: '', poidsMax: '', description: '' });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [commissionRate, setCommissionRate] = useState(20);
+  const [editingCommission, setEditingCommission] = useState(false);
+  const [commissionInput, setCommissionInput] = useState('20');
+  const [savingCommission, setSavingCommission] = useState(false);
 
   useEffect(() => {
     getPrixConfig().then((data) => {
       if (data.length > 0) setPrixConfig(data);
+    });
+    getCommissionRate().then((rate) => {
+      setCommissionRate(Math.round(rate * 100));
+      setCommissionInput(Math.round(rate * 100).toString());
     });
   }, []);
 
@@ -108,11 +116,68 @@ export default function Tarification() {
     }, 1000);
   };
 
+  const handleSaveCommission = async () => {
+    const value = parseFloat(commissionInput);
+    if (isNaN(value) || value < 0 || value > 100) return;
+    setSavingCommission(true);
+    try {
+      await updateCommissionRate(value / 100);
+      setCommissionRate(value);
+      setEditingCommission(false);
+    } catch {
+      // Firestore may not be configured
+    }
+    setSavingCommission(false);
+  };
+
   return (
     <div style={s.page} className="fade-in">
       <div style={s.header}>
         <h1 style={s.title}>Tarification</h1>
         <p style={s.subtitle}>Configuration des prix par type de colis</p>
+      </div>
+
+      {/* Commission Rate Card */}
+      <div style={{ ...s.card, padding: '20px 24px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexDirection: 'row' as const }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600 as const, color: '#6c757d', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: 6 }}>Taux de commission Coliway</div>
+          {editingCommission ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={commissionInput}
+                onChange={(e) => setCommissionInput(e.target.value)}
+                style={{ ...s.formInput, width: 100, padding: '8px 12px' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#2E86DE'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; }}
+              />
+              <span style={{ fontSize: 16, fontWeight: 600 as const, color: '#1a1a2e' }}>%</span>
+              <button
+                style={{ ...s.editBtn, background: '#2E86DE', color: '#fff' }}
+                onClick={handleSaveCommission}
+                disabled={savingCommission}
+              >
+                <Save size={14} /> {savingCommission ? 'Enregistrement...' : 'Enregistrer'}
+              </button>
+              <button
+                style={{ ...s.editBtn, background: '#f0f0f0', color: '#6c757d' }}
+                onClick={() => { setEditingCommission(false); setCommissionInput(commissionRate.toString()); }}
+              >
+                Annuler
+              </button>
+            </div>
+          ) : (
+            <div style={{ fontSize: 28, fontWeight: 700 as const, color: '#1B3A5C' }}>{commissionRate}%</div>
+          )}
+        </div>
+        {!editingCommission && (
+          <button style={s.editBtn} onClick={() => setEditingCommission(true)}>
+            <Edit3 size={14} /> Modifier
+          </button>
+        )}
       </div>
 
       <div style={s.card}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,19 +11,34 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { CardField, useStripe } from '@stripe/stripe-react-native';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
 import { useAuth } from '../../hooks/useAuth';
 import { signOut, updateProfile as updateUserProfile } from '../../services/auth';
+import {
+  listPaymentMethods,
+  createSetupIntent,
+  deletePaymentMethod,
+  SavedCard,
+} from '../../services/payment';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../constants/theme';
 
 export default function ProfilScreen() {
   const router = useRouter();
   const { user, profile, refreshProfile } = useAuth();
 
+  const { confirmSetupIntent } = useStripe();
+
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  // Card management
+  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
+  const [loadingCards, setLoadingCards] = useState(true);
+  const [addingCard, setAddingCard] = useState(false);
+  const [cardComplete, setCardComplete] = useState(false);
 
   // Editable fields
   const [nom, setNom] = useState(profile?.nom || '');
@@ -41,6 +56,68 @@ export default function ProfilScreen() {
       setAdresse(profile.adresse || '');
     }
   }, [profile]);
+
+  const loadCards = useCallback(async () => {
+    setLoadingCards(true);
+    try {
+      const cards = await listPaymentMethods();
+      setSavedCards(cards);
+    } catch (error) {
+      console.error('Error loading cards:', error);
+    } finally {
+      setLoadingCards(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCards();
+  }, [loadCards]);
+
+  const handleAddCard = async () => {
+    setAddingCard(true);
+    try {
+      const { clientSecret } = await createSetupIntent();
+      const { error } = await confirmSetupIntent(clientSecret, {
+        paymentMethodType: 'Card',
+      });
+
+      if (error) {
+        Alert.alert('Erreur', error.message || "Impossible d'enregistrer la carte.");
+      } else {
+        Alert.alert('Succès', 'Carte enregistrée avec succès.');
+        await loadCards();
+      }
+    } catch (error) {
+      Alert.alert('Erreur', "Impossible d'enregistrer la carte.");
+      console.error('Error adding card:', error);
+    } finally {
+      setAddingCard(false);
+      setCardComplete(false);
+    }
+  };
+
+  const handleDeleteCard = (card: SavedCard) => {
+    Alert.alert(
+      'Supprimer la carte',
+      `Voulez-vous supprimer la carte ${card.brand.toUpperCase()} **** ${card.last4} ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deletePaymentMethod(card.id);
+              await loadCards();
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de supprimer la carte.');
+              console.error('Error deleting card:', error);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleSaveProfile = async () => {
     if (!user) return;
@@ -280,26 +357,57 @@ export default function ProfilScreen() {
       <Text style={styles.sectionTitle}>Mes moyens de paiement</Text>
 
       <View style={styles.sectionCard}>
-        <TouchableOpacity style={styles.paymentMethodRow} activeOpacity={0.7}>
-          <View style={styles.paymentMethodLeft}>
-            <Ionicons name="card" size={20} color={Colors.primary} />
-            <Text style={styles.paymentMethodText}>
-              Carte bancaire **** 4242
-            </Text>
-          </View>
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color={Colors.textLight}
-          />
-        </TouchableOpacity>
+        {loadingCards ? (
+          <ActivityIndicator size="small" color={Colors.primary} style={{ paddingVertical: Spacing.md }} />
+        ) : savedCards.length === 0 ? (
+          <Text style={styles.noCardsText}>Aucune carte enregistrée</Text>
+        ) : (
+          savedCards.map((card) => (
+            <View key={card.id} style={styles.paymentMethodRow}>
+              <View style={styles.paymentMethodLeft}>
+                <Ionicons name="card" size={20} color={Colors.primary} />
+                <Text style={styles.paymentMethodText}>
+                  {card.brand.toUpperCase()} **** {card.last4}
+                </Text>
+                <Text style={styles.paymentMethodExpiry}>
+                  {String(card.expMonth).padStart(2, '0')}/{card.expYear}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => handleDeleteCard(card)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
 
-        <TouchableOpacity style={styles.addPaymentRow} activeOpacity={0.7}>
-          <Ionicons name="add-circle-outline" size={20} color={Colors.secondary} />
-          <Text style={styles.addPaymentText}>
-            Ajouter un moyen de paiement
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.addCardSection}>
+          <CardField
+            postalCodeEnabled={false}
+            placeholders={{ number: '4242 4242 4242 4242' }}
+            cardStyle={{
+              backgroundColor: Colors.background,
+              textColor: Colors.text,
+              borderWidth: 1,
+              borderColor: Colors.border,
+              borderRadius: BorderRadius.md,
+              fontSize: 14,
+            }}
+            style={styles.cardField}
+            onCardChange={(details) => setCardComplete(details.complete)}
+          />
+          <Button
+            title="Enregistrer la carte"
+            onPress={handleAddCard}
+            loading={addingCard}
+            icon="save-outline"
+            style={styles.addCardButton}
+            disabled={!cardComplete || addingCard}
+          />
+        </View>
       </View>
     </View>
   );
@@ -565,30 +673,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   paymentMethodLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
+    flex: 1,
   },
   paymentMethodText: {
     fontSize: Typography.sizes.base,
     color: Colors.text,
     fontWeight: Typography.weights.medium,
   },
-  addPaymentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+  paymentMethodExpiry: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textLight,
   },
-  addPaymentText: {
+  noCardsText: {
     fontSize: Typography.sizes.md,
-    color: Colors.secondary,
-    fontWeight: Typography.weights.medium,
+    color: Colors.textLight,
+    textAlign: 'center',
+    paddingVertical: Spacing.md,
+  },
+  addCardSection: {
+    marginTop: Spacing.md,
+  },
+  cardField: {
+    width: '100%',
+    height: 50,
+    marginBottom: Spacing.sm,
+  },
+  addCardButton: {
+    marginTop: Spacing.xs,
   },
   linkRow: {
     flexDirection: 'row',
@@ -621,6 +739,8 @@ const styles = StyleSheet.create({
   logoutButton: {
     marginHorizontal: Spacing.base,
     marginTop: Spacing.md,
+    width: undefined,
+    alignSelf: 'stretch',
   },
   deleteAccountButton: {
     alignItems: 'center',
