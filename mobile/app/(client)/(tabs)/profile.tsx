@@ -9,7 +9,6 @@ import {
   Image,
   ActivityIndicator,
   Switch,
-  Linking,
   Modal,
   KeyboardAvoidingView,
   Platform,
@@ -348,6 +347,19 @@ export default function ClientProfileScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color={Colors.textLight} />
         </TouchableOpacity>
+
+        <View style={styles.actionDivider} />
+
+        <TouchableOpacity
+          style={styles.actionRow}
+          onPress={() => router.push('/(client)/mes-reclamations')}
+        >
+          <View style={styles.actionLeft}>
+            <Ionicons name="warning-outline" size={22} color={Colors.accent} />
+            <Text style={styles.actionText}>Mes réclamations</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={Colors.textLight} />
+        </TouchableOpacity>
       </View>
 
       {/* Payment Methods */}
@@ -437,7 +449,7 @@ export default function ClientProfileScreen() {
       <View style={styles.legalCard}>
         <TouchableOpacity
           style={styles.legalRow}
-          onPress={() => Linking.openURL('https://coliway.fr/cgu')}
+          onPress={() => router.push({ pathname: '/(client)/legal', params: { type: 'cgu' } })}
           activeOpacity={0.7}
         >
           <View style={styles.legalLeft}>
@@ -451,7 +463,7 @@ export default function ClientProfileScreen() {
 
         <TouchableOpacity
           style={styles.legalRow}
-          onPress={() => Linking.openURL('https://coliway.fr/confidentialite')}
+          onPress={() => router.push({ pathname: '/(client)/legal', params: { type: 'confidentialite' } })}
           activeOpacity={0.7}
         >
           <View style={styles.legalLeft}>
@@ -465,7 +477,7 @@ export default function ClientProfileScreen() {
 
         <TouchableOpacity
           style={styles.legalRow}
-          onPress={() => Linking.openURL('https://coliway.fr/mentions-legales')}
+          onPress={() => router.push({ pathname: '/(client)/legal', params: { type: 'mentions' } })}
           activeOpacity={0.7}
         >
           <View style={styles.legalLeft}>
@@ -714,6 +726,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.base,
     fontWeight: Typography.weights.medium,
     color: Colors.text,
+  },
+  actionDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: Spacing.base,
   },
   paymentCard: {
     backgroundColor: Colors.white,

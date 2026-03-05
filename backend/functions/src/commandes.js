@@ -168,8 +168,8 @@ exports.accepterCommande = onCall({ region: "europe-west1" }, async (request) =>
     }
 
     const livreurData = livreurDoc.data();
-    if (livreurData.status !== "valide") {
-      throw new HttpsError("permission-denied", "Votre compte livreur n'est pas encore valide.");
+    if (livreurData.status !== "approuve") {
+      throw new HttpsError("permission-denied", "Votre compte livreur n'est pas encore approuve.");
     }
 
     if (!livreurData.disponible) {

@@ -16,7 +16,8 @@ import {
   updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from './firebase';
 import { UserRole } from '@/constants/config';
 
 export interface UserProfile {
@@ -38,6 +39,7 @@ export interface UserProfile {
   stripeCustomerId?: string;
   fcmToken?: string;
   adressesSauvegardees?: SavedAddress[];
+  accountStatus?: 'en_attente' | 'approuve' | 'refuse';
   createdAt: unknown;
   updatedAt: unknown;
 }
@@ -90,6 +92,15 @@ export async function signUp(
 
   // Use merge to avoid overwriting data from onUserCreated Cloud Function
   await setDoc(doc(db, 'users', user.uid), userProfile, { merge: true });
+
+  // Create livreur document via Cloud Function
+  if (userData.role === 'livreur') {
+    const inscrireLivreur = httpsCallable(functions, 'inscrireLivreur');
+    await inscrireLivreur({
+      vehicule: userData.vehicule,
+      permis: userData.permis,
+    });
+  }
 
   // Send email verification
   await sendEmailVerification(user);
@@ -144,6 +155,28 @@ export async function signInWithGoogle(idToken: string, role: UserRole = 'client
     });
   }
 
+  // Create livreur doc if registering as livreur
+  if (role === 'livreur') {
+    const livreurRef = doc(db, 'livreurs', user.uid);
+    const livreurDoc = await getDoc(livreurRef);
+    if (!livreurDoc.exists()) {
+      await setDoc(livreurRef, {
+        uid: user.uid,
+        vehicule: 'voiture',
+        permis: '',
+        siret: '',
+        assurance: '',
+        status: 'en_attente',
+        disponible: false,
+        note_moyenne: 5,
+        nb_courses: 0,
+        position: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  }
+
   return userCredential;
 }
 
@@ -183,10 +216,24 @@ export function getCurrentUser(): User | null {
  */
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const userDoc = await getDoc(doc(db, 'users', uid));
-  if (userDoc.exists()) {
-    return userDoc.data() as UserProfile;
+  if (!userDoc.exists()) {
+    return null;
   }
-  return null;
+
+  const profile = userDoc.data() as UserProfile;
+
+  // For livreurs, fetch account status from the livreurs collection
+  if (profile.role === 'livreur') {
+    const livreurDoc = await getDoc(doc(db, 'livreurs', uid));
+    if (livreurDoc.exists()) {
+      const livreurData = livreurDoc.data();
+      profile.accountStatus = (livreurData.status as UserProfile['accountStatus']) ?? 'en_attente';
+    } else {
+      profile.accountStatus = 'en_attente';
+    }
+  }
+
+  return profile;
 }
 
 /**

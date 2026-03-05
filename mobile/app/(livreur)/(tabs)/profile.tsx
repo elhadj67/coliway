@@ -251,6 +251,19 @@ export default function LivreurProfileTabScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color={Colors.textLight} />
         </TouchableOpacity>
+
+        <View style={styles.actionDivider} />
+
+        <TouchableOpacity
+          style={styles.actionRow}
+          onPress={() => router.push('/(livreur)/mes-reclamations')}
+        >
+          <View style={styles.actionLeft}>
+            <Ionicons name="warning-outline" size={22} color={Colors.accent} />
+            <Text style={styles.actionText}>Mes réclamations</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={Colors.textLight} />
+        </TouchableOpacity>
       </View>
 
       {/* Logout */}

@@ -7,6 +7,7 @@ export default function LivreurLayout() {
       <Stack.Screen name="course" />
       <Stack.Screen name="gains" />
       <Stack.Screen name="profil" />
+      <Stack.Screen name="legal" />
       <Stack.Screen name="chat" />
       <Stack.Screen name="notifications" />
     </Stack>

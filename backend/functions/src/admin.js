@@ -44,7 +44,7 @@ exports.getStats = onCall({ region: "europe-west1" }, async (request) => {
       clientsSnapshot,
     ] = await Promise.all([
       db.collection("commandes").get(),
-      db.collection("livreurs").where("status", "==", "valide").get(),
+      db.collection("livreurs").where("status", "==", "approuve").get(),
       db.collection("users").where("role", "==", "client").get(),
     ]);
 
@@ -115,10 +115,10 @@ exports.validerLivreur = onCall({ region: "europe-west1" }, async (request) => {
     );
   }
 
-  if (!["valide", "refuse"].includes(decision)) {
+  if (!["approuve", "refuse"].includes(decision)) {
     throw new HttpsError(
       "invalid-argument",
-      "La decision doit etre 'valide' ou 'refuse'."
+      "La decision doit etre 'approuve' ou 'refuse'."
     );
   }
 

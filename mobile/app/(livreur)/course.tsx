@@ -434,6 +434,20 @@ export default function CourseScreen() {
               <Ionicons name="chatbubble-outline" size={18} color={Colors.secondary} />
               <Text style={styles.contactButtonText}>Contacter le client</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.reportButton}
+              onPress={() =>
+                router.push({
+                  pathname: '/(livreur)/reclamation',
+                  params: { commandeId: orderId },
+                })
+              }
+              activeOpacity={0.7}
+            >
+              <Ionicons name="warning-outline" size={18} color={Colors.accent} />
+              <Text style={styles.reportButtonText}>Signaler un problème</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </View>
@@ -630,5 +644,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: Colors.secondary,
+  },
+  reportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.accent,
+    gap: 8,
+  },
+  reportButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.accent,
   },
 });

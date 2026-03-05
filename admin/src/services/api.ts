@@ -224,18 +224,66 @@ export async function getRecentCommandes(): Promise<RecentCommande[]> {
 // ──────────────────────────────────────────────
 export async function getCommandes(filters?: CommandeFilters): Promise<Commande[]> {
   try {
-    let q = query(collection(db, 'commandes'), orderBy('createdAt', 'desc'), limit(200));
+    let q;
     if (filters?.status && filters.status !== 'toutes') {
       q = query(
         collection(db, 'commandes'),
         where('status', '==', filters.status),
-        orderBy('createdAt', 'desc'),
         limit(200)
       );
+    } else {
+      q = query(collection(db, 'commandes'), limit(200));
     }
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Commande));
-  } catch {
+
+    // Collect unique user IDs to fetch names
+    const userIds = new Set<string>();
+    snap.docs.forEach((d) => {
+      const data = d.data();
+      if (data.clientId) userIds.add(data.clientId);
+      if (data.livreurId) userIds.add(data.livreurId);
+    });
+
+    // Fetch user profiles in parallel
+    const userMap = new Map<string, { nom: string; prenom: string }>();
+    await Promise.all(
+      Array.from(userIds).map(async (uid) => {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) {
+          const u = userDoc.data();
+          userMap.set(uid, { nom: u.nom || '', prenom: u.prenom || '' });
+        }
+      })
+    );
+
+    const results = snap.docs.map((d) => {
+      const data = d.data();
+      const client = userMap.get(data.clientId);
+      const livreur = data.livreurId ? userMap.get(data.livreurId) : undefined;
+      return {
+        id: d.id,
+        clientId: data.clientId || '',
+        clientNom: data.clientNom || (client ? `${client.prenom} ${client.nom}`.trim() : '-'),
+        livreurId: data.livreurId || '',
+        livreurNom: data.livreurNom || (livreur ? `${livreur.prenom} ${livreur.nom}`.trim() : '-'),
+        typeColis: data.colis_type || data.typeColis || '',
+        adresseDepart: data.adresse_depart?.adresse || data.adresseDepart || '',
+        adresseArrivee: data.adresse_arrivee?.adresse || data.adresseArrivee || '',
+        prix: data.prix || 0,
+        status: data.status || 'en_attente',
+        createdAt: data.createdAt,
+      } as Commande;
+    });
+
+    // Sort client-side by createdAt descending
+    results.sort((a, b) => {
+      const ta = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0;
+      const tb = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0;
+      return tb - ta;
+    });
+    return results;
+  } catch (err) {
+    console.error('getCommandes error:', err);
     return [];
   }
 }
@@ -267,17 +315,49 @@ export async function getCommandeById(id: string): Promise<Commande | null> {
 // ──────────────────────────────────────────────
 export async function getLivreurs(status?: string): Promise<Livreur[]> {
   try {
-    let q = query(collection(db, 'livreurs'), orderBy('createdAt', 'desc'));
+    let q;
     if (status) {
       q = query(
         collection(db, 'livreurs'),
-        where('status', '==', status),
-        orderBy('createdAt', 'desc')
+        where('status', '==', status)
       );
+    } else {
+      q = query(collection(db, 'livreurs'));
     }
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Livreur));
-  } catch {
+
+    // Fetch user profiles in parallel to get nom, prenom, email, telephone
+    const results = await Promise.all(
+      snap.docs.map(async (d) => {
+        const data = d.data();
+        const userDoc = await getDoc(doc(db, 'users', d.id));
+        const userData = userDoc.exists() ? userDoc.data() : {};
+        return {
+          id: d.id,
+          nom: userData.nom || data.nom || '',
+          prenom: userData.prenom || data.prenom || '',
+          email: userData.email || data.email || '',
+          telephone: userData.telephone || data.telephone || '',
+          vehicule: data.vehicule || '',
+          siret: data.siret || userData.siret || '',
+          note: data.note_moyenne ?? data.note ?? userData.note ?? 0,
+          courses: data.nb_courses ?? data.courses ?? 0,
+          status: data.status,
+          documents: data.documents,
+          createdAt: data.createdAt,
+        } as Livreur;
+      })
+    );
+
+    // Sort client-side by createdAt descending
+    results.sort((a, b) => {
+      const ta = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0;
+      const tb = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0;
+      return tb - ta;
+    });
+    return results;
+  } catch (err) {
+    console.error('getLivreurs error:', err);
     return [];
   }
 }
@@ -307,10 +387,28 @@ export async function validerLivreur(
 export async function getClients(): Promise<Client[]> {
   try {
     const snap = await getDocs(
-      query(collection(db, 'clients'), orderBy('dateInscription', 'desc'))
+      query(collection(db, 'users'), where('role', '==', 'client'))
     );
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Client));
-  } catch {
+    const results = snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        nom: data.nom || '',
+        prenom: data.prenom || '',
+        email: data.email || '',
+        telephone: data.telephone || '',
+        dateInscription: data.createdAt,
+        nbCommandes: data.nombreCommandes ?? 0,
+      } as Client;
+    });
+    results.sort((a, b) => {
+      const ta = a.dateInscription instanceof Timestamp ? a.dateInscription.toMillis() : 0;
+      const tb = b.dateInscription instanceof Timestamp ? b.dateInscription.toMillis() : 0;
+      return tb - ta;
+    });
+    return results;
+  } catch (err) {
+    console.error('getClients error:', err);
     return [];
   }
 }
@@ -385,11 +483,54 @@ export async function getPaiements(): Promise<Paiement[]> {
 // ──────────────────────────────────────────────
 export async function getLitiges(): Promise<Litige[]> {
   try {
-    const snap = await getDocs(
-      query(collection(db, 'litiges'), orderBy('createdAt', 'desc'))
+    const snap = await getDocs(collection(db, 'litiges'));
+
+    // Collect unique user IDs
+    const userIds = new Set<string>();
+    snap.docs.forEach((d) => {
+      const data = d.data();
+      if (data.clientId) userIds.add(data.clientId);
+      if (data.livreurId) userIds.add(data.livreurId);
+    });
+
+    // Fetch user profiles in parallel
+    const userMap = new Map<string, { nom: string; prenom: string }>();
+    await Promise.all(
+      Array.from(userIds).map(async (uid) => {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) {
+          const u = userDoc.data();
+          userMap.set(uid, { nom: u.nom || '', prenom: u.prenom || '' });
+        }
+      })
     );
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Litige));
-  } catch {
+
+    const results = snap.docs.map((d) => {
+      const data = d.data();
+      const client = userMap.get(data.clientId);
+      const livreur = data.livreurId ? userMap.get(data.livreurId) : undefined;
+      return {
+        id: d.id,
+        commandeId: data.commandeId || '',
+        clientId: data.clientId || '',
+        clientNom: data.clientNom || (client ? `${client.prenom} ${client.nom}`.trim() : '-'),
+        livreurId: data.livreurId || '',
+        livreurNom: data.livreurNom || (livreur ? `${livreur.prenom} ${livreur.nom}`.trim() : '-'),
+        motif: data.motif || '',
+        description: data.description || '',
+        status: data.status || 'ouvert',
+        createdAt: data.createdAt,
+      } as Litige;
+    });
+
+    results.sort((a, b) => {
+      const ta = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0;
+      const tb = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0;
+      return tb - ta;
+    });
+    return results;
+  } catch (err) {
+    console.error('getLitiges error:', err);
     return [];
   }
 }
@@ -399,6 +540,54 @@ export async function updateLitige(
   data: Partial<Litige>
 ): Promise<void> {
   await updateDoc(doc(db, 'litiges', id), { ...data, updatedAt: Timestamp.now() });
+}
+
+export async function getLitigesByUser(userId: string): Promise<Litige[]> {
+  try {
+    const qClient = query(
+      collection(db, 'litiges'),
+      where('clientId', '==', userId)
+    );
+    const qLivreur = query(
+      collection(db, 'litiges'),
+      where('livreurId', '==', userId)
+    );
+
+    const [clientSnap, livreurSnap] = await Promise.all([
+      getDocs(qClient),
+      getDocs(qLivreur),
+    ]);
+
+    const map = new Map<string, Litige>();
+    [...clientSnap.docs, ...livreurSnap.docs].forEach((d) => {
+      if (!map.has(d.id)) {
+        const data = d.data();
+        map.set(d.id, {
+          id: d.id,
+          commandeId: data.commandeId || '',
+          clientId: data.clientId || '',
+          clientNom: data.clientNom || '-',
+          livreurId: data.livreurId || '',
+          livreurNom: data.livreurNom || '-',
+          motif: data.motif || '',
+          description: data.description || '',
+          status: data.status || 'ouvert',
+          createdAt: data.createdAt,
+        } as Litige);
+      }
+    });
+
+    const results = Array.from(map.values());
+    results.sort((a, b) => {
+      const ta = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0;
+      const tb = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0;
+      return tb - ta;
+    });
+    return results;
+  } catch (err) {
+    console.error('getLitigesByUser error:', err);
+    return [];
+  }
 }
 
 // ──────────────────────────────────────────────

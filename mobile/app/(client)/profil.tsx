@@ -415,7 +415,7 @@ export default function ProfilScreen() {
   const renderLegalLinks = () => (
     <View style={styles.section}>
       <View style={styles.sectionCard}>
-        <TouchableOpacity style={styles.linkRow} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.linkRow} activeOpacity={0.7} onPress={() => router.push({ pathname: '/(client)/legal', params: { type: 'cgu' } })}>
           <View style={styles.linkLeft}>
             <Ionicons
               name="document-text-outline"
@@ -435,7 +435,7 @@ export default function ProfilScreen() {
 
         <View style={styles.linkDivider} />
 
-        <TouchableOpacity style={styles.linkRow} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.linkRow} activeOpacity={0.7} onPress={() => router.push({ pathname: '/(client)/legal', params: { type: 'confidentialite' } })}>
           <View style={styles.linkLeft}>
             <Ionicons
               name="shield-outline"
@@ -453,7 +453,7 @@ export default function ProfilScreen() {
 
         <View style={styles.linkDivider} />
 
-        <TouchableOpacity style={styles.linkRow} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.linkRow} activeOpacity={0.7} onPress={() => router.push({ pathname: '/(client)/legal', params: { type: 'mentions' } })}>
           <View style={styles.linkLeft}>
             <Ionicons
               name="information-circle-outline"

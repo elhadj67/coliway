@@ -473,8 +473,8 @@ export default function RegisterScreen() {
               </View>
               <Text style={styles.termsText}>
                 J'accepte les{' '}
-                <Text style={styles.termsLink}>CGU</Text> et la{' '}
-                <Text style={styles.termsLink}>Politique de Confidentialité</Text>
+                <Text style={styles.termsLink} onPress={() => router.push({ pathname: '/(auth)/legal', params: { type: 'cgu' } })}>CGU</Text> et la{' '}
+                <Text style={styles.termsLink} onPress={() => router.push({ pathname: '/(auth)/legal', params: { type: 'confidentialite' } })}>Politique de Confidentialité</Text>
               </Text>
             </TouchableOpacity>
             {errors.terms && (

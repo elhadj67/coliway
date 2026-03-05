@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, FileText, Star, Trash2, Archive } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, Star, Trash2, Archive, AlertTriangle } from 'lucide-react';
 import DataTable, { Column } from '@/components/DataTable';
 import StatusBadge from '@/components/StatusBadge';
 import Modal, { ModalButton } from '@/components/Modal';
-import { getLivreurs, validerLivreur, deleteOneLivreur, archiveOneLivreur, deleteLivreurs, archiveLivreurs, Livreur } from '@/services/api';
+import { getLivreurs, validerLivreur, deleteOneLivreur, archiveOneLivreur, deleteLivreurs, archiveLivreurs, getLitigesByUser, Livreur, Litige } from '@/services/api';
 
 const tabs = [
   { key: 'en_attente', label: 'En attente de validation' },
@@ -38,6 +38,7 @@ export default function Livreurs() {
   const [activeTab, setActiveTab] = useState('en_attente');
   const [livreurs, setLivreurs] = useState<Livreur[]>([]);
   const [selected, setSelected] = useState<Livreur | null>(null);
+  const [livreurLitiges, setLivreurLitiges] = useState<Litige[]>([]);
   const [confirmModal, setConfirmModal] = useState<{ type: 'delete' | 'archive'; id?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -47,6 +48,14 @@ export default function Livreurs() {
   };
 
   useEffect(() => { fetchData(); }, [activeTab]);
+
+  useEffect(() => {
+    if (selected) {
+      getLitigesByUser(selected.id).then(setLivreurLitiges);
+    } else {
+      setLivreurLitiges([]);
+    }
+  }, [selected]);
 
   const filtered = livreurs.filter((l) => l.status === activeTab);
 
@@ -142,6 +151,26 @@ export default function Livreurs() {
               {selected.documents?.identite && <div style={s.docRow}><FileText size={16} color="#2E86DE" /><span>Piece d'identite</span><span style={{ marginLeft: 'auto', color: '#27AE60', fontSize: 12, fontWeight: 600 }}>Fourni</span></div>}
               {selected.documents?.assurance && <div style={s.docRow}><FileText size={16} color="#2E86DE" /><span>Assurance</span><span style={{ marginLeft: 'auto', color: '#27AE60', fontSize: 12, fontWeight: 600 }}>Fourni</span></div>}
               {!selected.documents?.permis && !selected.documents?.identite && !selected.documents?.assurance && <div style={{ color: '#adb5bd', fontSize: 13 }}>Aucun document fourni</div>}
+            </div>
+            <div style={s.detailSection}>
+              <div style={s.detailSectionTitle}>Litiges</div>
+              {livreurLitiges.length === 0 ? (
+                <div style={{ color: '#adb5bd', fontSize: 13 }}>Aucun litige</div>
+              ) : livreurLitiges.map((litige) => {
+                const statusColors: Record<string, string> = { ouvert: '#F39C12', en_cours: '#2E86DE', resolu: '#27AE60', ferme: '#95A5A6' };
+                const statusLabels: Record<string, string> = { ouvert: 'Ouvert', en_cours: 'En cours', resolu: 'Résolu', ferme: 'Fermé' };
+                const color = statusColors[litige.status] || '#F39C12';
+                return (
+                  <div key={litige.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #f5f5f5', fontSize: 13, gap: 8, flexWrap: 'wrap' as const }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <AlertTriangle size={14} color={color} />
+                      <span style={{ fontWeight: 600 }}>{litige.motif}</span>
+                    </span>
+                    <span style={{ color: '#6c757d', fontSize: 12 }}>{litige.commandeId.slice(0, 8)}</span>
+                    <span style={{ background: color + '20', color, padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>{statusLabels[litige.status] || litige.status}</span>
+                  </div>
+                );
+              })}
             </div>
             <div style={s.actionBtns}>
               {selected.status === 'en_attente' && <>

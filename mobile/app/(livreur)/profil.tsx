@@ -677,14 +677,12 @@ export default function ProfilScreen() {
             <LinkRow
               icon="reader-outline"
               label="Conditions generales d'utilisation"
-              onPress={() => handleOpenLink('https://coliway.fr/cgu')}
+              onPress={() => router.push({ pathname: '/(livreur)/legal', params: { type: 'cgu' } })}
             />
             <LinkRow
               icon="lock-closed-outline"
               label="Politique de confidentialite"
-              onPress={() =>
-                handleOpenLink('https://coliway.fr/confidentialite')
-              }
+              onPress={() => router.push({ pathname: '/(livreur)/legal', params: { type: 'confidentialite' } })}
               isLast
             />
           </View>

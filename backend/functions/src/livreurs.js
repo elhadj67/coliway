@@ -165,7 +165,7 @@ exports.toggleDisponibilite = onCall({ region: "europe-west1" }, async (request)
     const livreurData = livreurDoc.data();
 
     // Verifier que le livreur est valide
-    if (livreurData.status !== "valide") {
+    if (livreurData.status !== "approuve") {
       throw new HttpsError(
         "failed-precondition",
         "Votre compte livreur doit etre valide pour changer votre disponibilite."

@@ -402,6 +402,22 @@ export default function SuiviScreen() {
           </View>
         )}
 
+        {/* Report Problem Button */}
+        {order.status !== 'annulee' && (
+          <Button
+            title="Signaler un problème"
+            onPress={() =>
+              router.push({
+                pathname: '/(client)/reclamation',
+                params: { commandeId: orderId },
+              })
+            }
+            variant="outline"
+            icon="warning-outline"
+            style={styles.reportButton}
+          />
+        )}
+
         {/* Cancel Button */}
         {canCancel && (
           <Button
@@ -637,6 +653,9 @@ const styles = StyleSheet.create({
   },
   contactButton: {
     marginTop: 0,
+  },
+  reportButton: {
+    marginTop: Spacing.sm,
   },
   cancelButton: {
     marginTop: Spacing.sm,

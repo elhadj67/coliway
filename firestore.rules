@@ -12,7 +12,7 @@ service cloud.firestore {
     // Livreurs collection
     match /livreurs/{livreurId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && request.auth.uid == livreurId;
+      allow create: if request.auth != null && (request.auth.uid == livreurId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
       allow update: if request.auth != null && (request.auth.uid == livreurId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
       allow delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
