@@ -21,14 +21,14 @@ import { subscribeToOrder, Order } from '@/services/orders';
 import { getUserProfile, UserProfile } from '@/services/auth';
 import ChatBubble from '@/components/ChatBubble';
 
-export default function LivreurChatScreen() {
+export default function ClientChatScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ orderId: string }>();
   const { user } = useAuth();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [order, setOrder] = useState<Order | null>(null);
-  const [clientProfile, setClientProfile] = useState<UserProfile | null>(null);
+  const [livreurProfile, setLivreurProfile] = useState<UserProfile | null>(null);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -48,14 +48,14 @@ export default function LivreurChatScreen() {
     return () => unsubscribe();
   }, [orderId]);
 
-  // Fetch client profile
+  // Fetch livreur profile
   useEffect(() => {
-    if (order?.clientId) {
-      getUserProfile(order.clientId).then((profile) => {
-        setClientProfile(profile);
+    if (order?.livreurId) {
+      getUserProfile(order.livreurId).then((profile) => {
+        setLivreurProfile(profile);
       });
     }
-  }, [order?.clientId]);
+  }, [order?.livreurId]);
 
   // Subscribe to messages
   useEffect(() => {
@@ -95,9 +95,9 @@ export default function LivreurChatScreen() {
     }
   };
 
-  const clientName = clientProfile
-    ? `${clientProfile.prenom} ${clientProfile.nom}`
-    : 'Client';
+  const livreurName = livreurProfile
+    ? `${livreurProfile.prenom} ${livreurProfile.nom}`
+    : 'Livreur';
 
   if (loading) {
     return (
@@ -119,16 +119,16 @@ export default function LivreurChatScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerName}>{clientName}</Text>
+          <Text style={styles.headerName}>{livreurName}</Text>
           <Text style={styles.headerOrder}>
             Commande #{orderId?.slice(0, 8)}
           </Text>
         </View>
-        {clientProfile?.telephone && (
+        {order?.livreurId && livreurProfile?.telephone && (
           <TouchableOpacity
             style={styles.callButton}
             activeOpacity={0.7}
-            onPress={() => Linking.openURL(`tel:${clientProfile.telephone}`)}
+            onPress={() => Linking.openURL(`tel:${livreurProfile.telephone}`)}
           >
             <Ionicons name="call-outline" size={20} color={Colors.primary} />
           </TouchableOpacity>
@@ -167,7 +167,7 @@ export default function LivreurChatScreen() {
                 color={Colors.border}
               />
               <Text style={styles.emptyText}>
-                Aucun message. Commencez la conversation !
+                Aucun message. Commencez la conversation avec votre livreur !
               </Text>
             </View>
           }
@@ -272,6 +272,7 @@ const styles = StyleSheet.create({
     color: Colors.textLight,
     marginTop: Spacing.md,
     textAlign: 'center',
+    maxWidth: 250,
   },
   inputBar: {
     flexDirection: 'row',

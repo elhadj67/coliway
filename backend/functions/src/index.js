@@ -51,6 +51,12 @@ exports.envoyerNotifCommande = notifications.envoyerNotifCommande;
 exports.markNotificationRead = notifications.markNotificationRead;
 
 // ============================================================
+// Litiges (firebase-functions v1 Firestore trigger)
+// ============================================================
+const litiges = require("./litiges");
+exports.onLitigeCreated = litiges.onLitigeCreated;
+
+// ============================================================
 // Admin (firebase-functions/v2 onCall)
 // ============================================================
 const adminFunctions = require("./admin");

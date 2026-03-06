@@ -6,11 +6,13 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { getMyLitiges, Litige } from '../../services/litiges';
+import { getClientOrders, Order } from '../../services/orders';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import { Timestamp } from 'firebase/firestore';
 
@@ -26,6 +28,9 @@ export default function MesReclamationsClientScreen() {
   const { user } = useAuth();
   const [litiges, setLitiges] = useState<Litige[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showOrderPicker, setShowOrderPicker] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -35,6 +40,25 @@ export default function MesReclamationsClientScreen() {
     });
     return () => unsubscribe();
   }, [user]);
+
+  const handleNewReclamation = () => {
+    if (!user) return;
+    setOrdersLoading(true);
+    setShowOrderPicker(true);
+    const unsubscribe = getClientOrders(user.uid, (data) => {
+      setOrders(data);
+      setOrdersLoading(false);
+      unsubscribe();
+    });
+  };
+
+  const selectOrder = (orderId: string) => {
+    setShowOrderPicker(false);
+    router.push({
+      pathname: '/(client)/reclamation',
+      params: { commandeId: orderId },
+    });
+  };
 
   const formatDate = (timestamp: Timestamp | Date) => {
     const date = timestamp instanceof Timestamp ? timestamp.toDate() : timestamp;
@@ -82,7 +106,9 @@ export default function MesReclamationsClientScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Mes réclamations</Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity onPress={handleNewReclamation} style={styles.addButton} activeOpacity={0.7}>
+          <Ionicons name="add-circle" size={28} color={Colors.primary} />
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -106,6 +132,38 @@ export default function MesReclamationsClientScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      <Modal visible={showOrderPicker} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sélectionnez une commande</Text>
+              <TouchableOpacity onPress={() => setShowOrderPicker(false)}>
+                <Ionicons name="close" size={24} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            {ordersLoading ? (
+              <ActivityIndicator size="large" color={Colors.primary} style={{ marginVertical: Spacing.xl }} />
+            ) : orders.length === 0 ? (
+              <Text style={styles.emptySubtext}>Aucune commande trouvée.</Text>
+            ) : (
+              <FlatList
+                data={orders}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity style={styles.orderItem} onPress={() => selectOrder(item.id)} activeOpacity={0.7}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.orderItemTitle}>Commande #{item.id.slice(0, 8)}</Text>
+                      <Text style={styles.orderItemSub}>{item.adresseEnlevement?.adresse || 'Départ'} → {item.adresseLivraison?.adresse || 'Arrivée'}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={Colors.textLight} />
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -137,8 +195,12 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.bold,
     color: Colors.text,
   },
-  headerSpacer: {
+  addButton: {
     width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   listContent: {
     padding: Spacing.base,
@@ -219,5 +281,47 @@ const styles = StyleSheet.create({
     color: Colors.textLight,
     marginTop: Spacing.sm,
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    maxHeight: '70%',
+    paddingBottom: Spacing.xxxl,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.base,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: Typography.sizes.lg,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+  },
+  orderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.base,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  orderItemTitle: {
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  orderItemSub: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textLight,
   },
 });

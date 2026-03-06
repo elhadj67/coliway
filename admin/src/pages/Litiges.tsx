@@ -288,8 +288,14 @@ export default function Litiges() {
               </div>
             )}
 
-            {/* Delete / Archive */}
+            {/* Close / Delete / Archive */}
             <div style={s.actionBtns}>
+              <button
+                style={{ ...s.actionBtn('#f0f0f0', '#1a1a2e'), flex: 1 }}
+                onClick={() => setSelected(null)}
+              >
+                Fermer
+              </button>
               <button style={s.archiveAllBtn} onClick={() => setConfirmModal({ type: 'archive', id: selected.id })}><Archive size={14} /> Archiver</button>
               <button style={s.deleteAllBtn} onClick={() => setConfirmModal({ type: 'delete', id: selected.id })}><Trash2 size={14} /> Supprimer</button>
             </div>
