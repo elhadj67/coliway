@@ -27,7 +27,8 @@
         "NSLocationAlwaysUsageDescription": "Coliway utilise votre position en arrière-plan pour le suivi des livraisons.",
         "NSCameraUsageDescription": "Coliway utilise la camera pour prendre des photos de colis et documents.",
         "NSPhotoLibraryUsageDescription": "Coliway accede a vos photos pour joindre des images aux commandes.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["location", "fetch", "remote-notification"]
       },
       "entitlements": {
         "aps-environment": "production"
@@ -56,6 +57,7 @@
       "./plugins/fix-jitpack",
       "expo-router",
       "expo-location",
+      "expo-task-manager",
       "expo-notifications",
       "expo-image-picker",
       "expo-document-picker",

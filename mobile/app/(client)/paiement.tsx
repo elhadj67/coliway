@@ -16,6 +16,7 @@ import * as WebBrowser from 'expo-web-browser';
 import {
   createPaymentIntent,
   createPaypalPayment,
+  capturePaypalOrder,
   listPaymentMethods,
   SavedCard,
 } from '../../services/payment';
@@ -114,7 +115,7 @@ export default function PaiementScreen() {
         }
       } else {
         // PayPal flow
-        const { approvalUrl } = await createPaypalPayment(
+        const { approvalUrl, paymentId } = await createPaypalPayment(
           orderId,
           Math.round(montant * 100)
         );
@@ -125,6 +126,8 @@ export default function PaiementScreen() {
         );
 
         if (result.type === 'success') {
+          // Capture the PayPal payment after user approval
+          await capturePaypalOrder(paymentId);
           setPaymentState('success');
         } else {
           setErrorMessage('Paiement PayPal annulé ou échoué.');

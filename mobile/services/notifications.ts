@@ -73,6 +73,22 @@ export async function registerForPushNotifications(
 }
 
 /**
+ * Listens for push token changes and updates Firestore.
+ * Returns an event subscription that should be removed on cleanup.
+ */
+export function listenForTokenRefresh(
+  userId: string
+): Notifications.EventSubscription {
+  return Notifications.addPushTokenListener(async (token) => {
+    try {
+      await updateProfile(userId, { fcmToken: token.data as string });
+    } catch (error) {
+      console.error('Failed to update FCM token:', error);
+    }
+  });
+}
+
+/**
  * Sends a local notification immediately.
  */
 export async function sendLocalNotification(

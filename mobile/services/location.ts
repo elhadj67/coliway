@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import * as TaskManager from 'expo-task-manager';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -119,6 +120,86 @@ export async function updateLivreurPosition(
     },
     positionUpdatedAt: serverTimestamp(),
   });
+}
+
+// ============================================================
+// Background location tracking for livreurs
+// ============================================================
+
+const BACKGROUND_LOCATION_TASK = 'coliway-background-location';
+
+// Store the livreur ID for the background task
+let _backgroundLivreurId: string | null = null;
+
+// Define the background task at module level (required by expo-task-manager)
+TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
+  if (error) {
+    console.error('Background location error:', error);
+    return;
+  }
+  if (data && _backgroundLivreurId) {
+    const { locations } = data as { locations: Location.LocationObject[] };
+    const latest = locations[locations.length - 1];
+    if (latest) {
+      try {
+        await updateLivreurPosition(_backgroundLivreurId, {
+          latitude: latest.coords.latitude,
+          longitude: latest.coords.longitude,
+        });
+      } catch (err) {
+        console.error('Background position update failed:', err);
+      }
+    }
+  }
+});
+
+/**
+ * Starts background location tracking for a livreur.
+ * Updates position in Firestore even when the app is in the background.
+ */
+export async function startBackgroundLocationTracking(
+  livreurId: string
+): Promise<boolean> {
+  const bgGranted = await requestBackgroundLocationPermission();
+  if (!bgGranted) return false;
+
+  _backgroundLivreurId = livreurId;
+
+  const isTracking = await Location.hasStartedLocationUpdatesAsync(
+    BACKGROUND_LOCATION_TASK
+  ).catch(() => false);
+
+  if (!isTracking) {
+    await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
+      accuracy: Location.Accuracy.High,
+      distanceInterval: 20,
+      timeInterval: 10000,
+      foregroundService: {
+        notificationTitle: 'Coliway - Course en cours',
+        notificationBody: 'Votre position est partagée avec le client.',
+        notificationColor: '#1B3A5C',
+      },
+      pausesUpdatesAutomatically: false,
+      showsBackgroundLocationIndicator: true,
+    });
+  }
+
+  return true;
+}
+
+/**
+ * Stops background location tracking.
+ */
+export async function stopBackgroundLocationTracking(): Promise<void> {
+  _backgroundLivreurId = null;
+
+  const isTracking = await Location.hasStartedLocationUpdatesAsync(
+    BACKGROUND_LOCATION_TASK
+  ).catch(() => false);
+
+  if (isTracking) {
+    await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+  }
 }
 
 /**

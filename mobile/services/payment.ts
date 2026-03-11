@@ -93,3 +93,17 @@ export async function createPaypalPayment(
   const result = await createPaypalFn({ commandeId, amount });
   return result.data;
 }
+
+/**
+ * Captures a PayPal payment after user approval.
+ */
+export async function capturePaypalOrder(
+  paypalOrderId: string
+): Promise<{ success: boolean }> {
+  const fn = httpsCallable<{ paypalOrderId: string }, { success: boolean }>(
+    functions,
+    'capturePaypalOrder'
+  );
+  const result = await fn({ paypalOrderId });
+  return result.data;
+}

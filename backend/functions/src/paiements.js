@@ -320,6 +320,16 @@ webhookApp.post("/", express.raw({ type: "application/json" }), async (req, res)
         break;
       }
 
+      case "setup_intent.succeeded": {
+        const setupIntent = event.data.object;
+        const customerId = setupIntent.customer;
+        const paymentMethodId = setupIntent.payment_method;
+        logger.info(
+          `SetupIntent reussi: carte ${paymentMethodId} enregistree pour customer ${customerId}`
+        );
+        break;
+      }
+
       default:
         logger.info(`Evenement Stripe non gere: ${event.type}`);
     }

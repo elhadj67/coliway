@@ -11,7 +11,7 @@ import {
   UserProfile,
   SignUpData,
 } from '@/services/auth';
-import { registerForPushNotifications } from '@/services/notifications';
+import { registerForPushNotifications, listenForTokenRefresh } from '@/services/notifications';
 
 export interface AuthContextType {
   user: User | null;
@@ -55,13 +55,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Listen to Firebase auth state changes
   useEffect(() => {
+    let tokenSubscription: { remove: () => void } | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
 
+      // Clean up previous token listener
+      tokenSubscription?.remove();
+      tokenSubscription = null;
+
       if (firebaseUser) {
         await fetchProfile(firebaseUser.uid);
-        // Fire & forget — don't block auth flow
         registerForPushNotifications(firebaseUser.uid).catch(() => {});
+        tokenSubscription = listenForTokenRefresh(firebaseUser.uid);
       } else {
         setProfile(null);
       }
@@ -69,7 +75,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      tokenSubscription?.remove();
+    };
   }, []);
 
   // Sign in with email and password

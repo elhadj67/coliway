@@ -34,6 +34,8 @@ import {
 import { getUserProfile, UserProfile } from '@/services/auth';
 import {
   updateLivreurPosition,
+  startBackgroundLocationTracking,
+  stopBackgroundLocationTracking,
   Position,
 } from '@/services/location';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -121,12 +123,27 @@ export default function CourseScreen() {
     }
   }, [order?.clientId]);
 
-  // Update livreur position in Firestore
+  // Update livreur position in Firestore (foreground)
   useEffect(() => {
     if (location && user) {
       updateLivreurPosition(user.uid, location);
     }
   }, [location, user]);
+
+  // Start background location tracking when on active delivery
+  useEffect(() => {
+    if (!user || !order) return;
+    const activeStatuses = ['acceptee', 'enlevee', 'en_transit'];
+    if (activeStatuses.includes(order.status)) {
+      startBackgroundLocationTracking(user.uid).catch((err) =>
+        console.warn('Background location not available:', err)
+      );
+    }
+
+    return () => {
+      stopBackgroundLocationTracking().catch(() => {});
+    };
+  }, [user, order?.status]);
 
   const isPickedUp =
     order?.status === 'en_transit' ||
