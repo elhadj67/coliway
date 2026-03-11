@@ -32,6 +32,10 @@ exports.deletePaymentMethod = paiements.deletePaymentMethod;
 exports.stripeWebhook = paiements.stripeWebhook;
 exports.createPaypalPayment = paiements.createPaypalPayment;
 exports.capturePaypalOrder = paiements.capturePaypalOrder;
+exports.createConnectAccount = paiements.createConnectAccount;
+exports.getConnectAccountStatus = paiements.getConnectAccountStatus;
+exports.requestPayout = paiements.requestPayout;
+exports.getPayoutHistory = paiements.getPayoutHistory;
 
 // ============================================================
 // Livreurs (firebase-functions/v2 onCall)

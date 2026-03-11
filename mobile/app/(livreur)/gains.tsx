@@ -17,7 +17,17 @@ import { getLivreurOrders, Order } from '@/services/orders';
 import { calculateDistance } from '@/services/location';
 import { Colors } from '@/constants/theme';
 import { Timestamp } from 'firebase/firestore';
-import { fetchCommissionRate, COMMISSION_RATE as DEFAULT_COMMISSION_RATE } from '@/services/gains';
+import * as WebBrowser from 'expo-web-browser';
+import {
+  fetchCommissionRate,
+  COMMISSION_RATE as DEFAULT_COMMISSION_RATE,
+  createConnectAccount,
+  getConnectAccountStatus,
+  requestPayout,
+  getPayoutHistory,
+  ConnectAccountStatus,
+  PayoutRecord,
+} from '@/services/gains';
 
 type PeriodKey = 'today' | 'week' | 'month' | 'total';
 
@@ -150,9 +160,38 @@ export default function GainsScreen() {
   const [loading, setLoading] = useState(true);
   const [commissionRate, setCommissionRate] = useState(DEFAULT_COMMISSION_RATE);
 
+  // Payout state
+  const [connectStatus, setConnectStatus] = useState<ConnectAccountStatus | null>(null);
+  const [payoutHistory, setPayoutHistory] = useState<PayoutRecord[]>([]);
+  const [loadingConnect, setLoadingConnect] = useState(true);
+  const [processingPayout, setProcessingPayout] = useState(false);
+
   useEffect(() => {
     fetchCommissionRate().then(setCommissionRate);
+    loadConnectStatus();
+    loadPayoutHistory();
   }, []);
+
+  const loadConnectStatus = async () => {
+    setLoadingConnect(true);
+    try {
+      const status = await getConnectAccountStatus();
+      setConnectStatus(status);
+    } catch {
+      setConnectStatus({ status: 'not_created' });
+    } finally {
+      setLoadingConnect(false);
+    }
+  };
+
+  const loadPayoutHistory = async () => {
+    try {
+      const history = await getPayoutHistory();
+      setPayoutHistory(history);
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -179,11 +218,63 @@ export default function GainsScreen() {
   const dailyEarnings = getDailyEarnings(periodOrders, commissionRate);
   const maxDailyAmount = Math.max(...dailyEarnings.map((d) => d.amount), 1);
 
+  const handleSetupConnect = async () => {
+    try {
+      const { onboardingUrl } = await createConnectAccount();
+      await WebBrowser.openBrowserAsync(onboardingUrl);
+      // Refresh status after returning from onboarding
+      await loadConnectStatus();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Erreur lors de la configuration.';
+      Alert.alert('Erreur', msg);
+    }
+  };
+
   const handleRequestPayout = () => {
+    if (!connectStatus || connectStatus.status !== 'active') {
+      if (connectStatus?.status === 'not_created' || connectStatus?.status === 'onboarding_incomplete') {
+        Alert.alert(
+          'Compte bancaire requis',
+          'Configurez votre compte bancaire pour recevoir vos versements.',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            { text: 'Configurer', onPress: handleSetupConnect },
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Verification en cours',
+          'Votre compte bancaire est en cours de verification par Stripe. Reessayez dans quelques minutes.'
+        );
+      }
+      return;
+    }
+
     Alert.alert(
       'Demande de versement',
-      'Cette fonctionnalite sera bientot disponible. Vos gains seront verses automatiquement selon le calendrier de paiement.',
-      [{ text: 'OK' }]
+      `Voulez-vous demander le versement de vos gains disponibles ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer',
+          onPress: async () => {
+            setProcessingPayout(true);
+            try {
+              const result = await requestPayout();
+              Alert.alert(
+                'Versement effectue',
+                `${result.amount.toFixed(2)} EUR pour ${result.orderCount} course(s) ont ete verses sur votre compte.`
+              );
+              await loadPayoutHistory();
+            } catch (error: any) {
+              const msg = error?.message || 'Erreur lors du versement.';
+              Alert.alert('Erreur', msg);
+            } finally {
+              setProcessingPayout(false);
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -356,15 +447,85 @@ export default function GainsScreen() {
           )}
         </View>
 
+        {/* Connect Status Banner */}
+        {!loadingConnect && connectStatus && connectStatus.status !== 'active' && (
+          <View style={styles.connectBanner}>
+            <Ionicons
+              name={connectStatus.status === 'pending_verification' ? 'time-outline' : 'alert-circle-outline'}
+              size={20}
+              color={connectStatus.status === 'pending_verification' ? Colors.accent : Colors.danger}
+            />
+            <View style={styles.connectBannerContent}>
+              <Text style={styles.connectBannerTitle}>
+                {connectStatus.status === 'not_created'
+                  ? 'Compte bancaire non configure'
+                  : connectStatus.status === 'onboarding_incomplete'
+                  ? 'Inscription incomplete'
+                  : 'Verification en cours'}
+              </Text>
+              <Text style={styles.connectBannerText}>
+                {connectStatus.status === 'pending_verification'
+                  ? 'Stripe verifie vos informations. Cela peut prendre quelques minutes.'
+                  : 'Configurez votre compte pour recevoir vos gains.'}
+              </Text>
+            </View>
+            {connectStatus.status !== 'pending_verification' && (
+              <TouchableOpacity onPress={handleSetupConnect} activeOpacity={0.7}>
+                <Ionicons name="arrow-forward-circle" size={28} color={Colors.secondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Payout Button */}
         <TouchableOpacity
-          style={styles.payoutButton}
+          style={[styles.payoutButton, processingPayout && styles.payoutButtonDisabled]}
           onPress={handleRequestPayout}
+          disabled={processingPayout}
           activeOpacity={0.7}
         >
-          <Ionicons name="wallet-outline" size={20} color={Colors.white} />
-          <Text style={styles.payoutButtonText}>Demander un versement</Text>
+          {processingPayout ? (
+            <ActivityIndicator size="small" color={Colors.white} />
+          ) : (
+            <Ionicons name="wallet-outline" size={20} color={Colors.white} />
+          )}
+          <Text style={styles.payoutButtonText}>
+            {processingPayout ? 'Versement en cours...' : 'Demander un versement'}
+          </Text>
         </TouchableOpacity>
+
+        {/* Payout History */}
+        {payoutHistory.length > 0 && (
+          <View style={styles.payoutHistorySection}>
+            <Text style={styles.sectionTitle}>Historique des versements</Text>
+            {payoutHistory.map((payout) => (
+              <View key={payout.id} style={styles.payoutRow}>
+                <View style={styles.payoutRowLeft}>
+                  <View style={styles.payoutIcon}>
+                    <Ionicons name="arrow-down-circle" size={18} color={Colors.secondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.payoutRowTitle}>
+                      {payout.nombreCourses} course{payout.nombreCourses > 1 ? 's' : ''}
+                    </Text>
+                    <Text style={styles.payoutRowDate}>
+                      {payout.createdAt
+                        ? new Date(payout.createdAt).toLocaleDateString('fr-FR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                          })
+                        : '--'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.payoutRowAmount}>
+                  {payout.montant.toFixed(2)} EUR
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -623,6 +784,33 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
+  // Connect Banner
+  connectBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF8E1',
+    marginHorizontal: 16,
+    marginTop: 20,
+    padding: 14,
+    borderRadius: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#FFE082',
+  },
+  connectBannerContent: {
+    flex: 1,
+  },
+  connectBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  connectBannerText: {
+    fontSize: 12,
+    color: Colors.textLight,
+    marginTop: 2,
+  },
+
   // Payout Button
   payoutButton: {
     flexDirection: 'row',
@@ -640,9 +828,56 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
+  payoutButtonDisabled: {
+    opacity: 0.6,
+  },
   payoutButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: Colors.white,
+  },
+
+  // Payout History
+  payoutHistorySection: {
+    marginHorizontal: 16,
+    marginTop: 24,
+  },
+  payoutRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 8,
+  },
+  payoutRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  payoutIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.secondary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  payoutRowTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  payoutRowDate: {
+    fontSize: 12,
+    color: Colors.textLight,
+    marginTop: 2,
+  },
+  payoutRowAmount: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.secondary,
   },
 });

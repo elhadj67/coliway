@@ -4,7 +4,9 @@
  */
 
 import { doc, getDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { db } from './firebase';
+import { functions } from './firebase';
 import { calculateDistance } from './location';
 
 export const COMMISSION_RATE = 0.20;
@@ -106,4 +108,71 @@ export function getOrderDistance(order: OrderForGains): number {
       longitude: order.adresseLivraison.longitude,
     }
   );
+}
+
+// ============================================================
+// Stripe Connect - Payout functions
+// ============================================================
+
+export interface ConnectAccountResponse {
+  accountId: string;
+  onboardingUrl: string;
+}
+
+export interface ConnectAccountStatus {
+  status: 'not_created' | 'onboarding_incomplete' | 'pending_verification' | 'active';
+  chargesEnabled?: boolean;
+  payoutsEnabled?: boolean;
+  detailsSubmitted?: boolean;
+}
+
+export interface PayoutResponse {
+  success: boolean;
+  amount: number;
+  transferId: string;
+  orderCount: number;
+}
+
+export interface PayoutRecord {
+  id: string;
+  montant: number;
+  nombreCourses: number;
+  status: string;
+  createdAt: string | null;
+}
+
+export async function createConnectAccount(): Promise<ConnectAccountResponse> {
+  const fn = httpsCallable<Record<string, never>, ConnectAccountResponse>(
+    functions,
+    'createConnectAccount'
+  );
+  const result = await fn({});
+  return result.data;
+}
+
+export async function getConnectAccountStatus(): Promise<ConnectAccountStatus> {
+  const fn = httpsCallable<Record<string, never>, ConnectAccountStatus>(
+    functions,
+    'getConnectAccountStatus'
+  );
+  const result = await fn({});
+  return result.data;
+}
+
+export async function requestPayout(): Promise<PayoutResponse> {
+  const fn = httpsCallable<Record<string, never>, PayoutResponse>(
+    functions,
+    'requestPayout'
+  );
+  const result = await fn({});
+  return result.data;
+}
+
+export async function getPayoutHistory(): Promise<PayoutRecord[]> {
+  const fn = httpsCallable<Record<string, never>, PayoutRecord[]>(
+    functions,
+    'getPayoutHistory'
+  );
+  const result = await fn({});
+  return result.data;
 }

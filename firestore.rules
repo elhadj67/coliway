@@ -97,5 +97,13 @@ service cloud.firestore {
       allow create: if request.auth != null;
       allow update: if request.auth != null && resource.data.userId == request.auth.uid;
     }
+
+    // Versements (payouts) - livreurs read their own, admin reads all, created by backend only
+    match /versements/{versementId} {
+      allow read: if request.auth != null && (
+        resource.data.livreurId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
   }
 }

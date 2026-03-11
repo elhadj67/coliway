@@ -587,3 +587,321 @@ exports.capturePaypalOrder = onCall(
     }
   }
 );
+
+// ============================================================
+// Stripe Connect - Livreur onboarding & payouts
+// ============================================================
+
+/**
+ * Creates a Stripe Connect Express account for a livreur
+ * and returns an onboarding link.
+ */
+exports.createConnectAccount = onCall(
+  { secrets: [stripeSecretKey], region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
+    }
+
+    try {
+      const userRef = db.collection("users").doc(request.auth.uid);
+      const userDoc = await userRef.get();
+
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "Utilisateur introuvable.");
+      }
+
+      const userData = userDoc.data();
+
+      if (userData.role !== "livreur") {
+        throw new HttpsError("permission-denied", "Seuls les livreurs peuvent creer un compte Connect.");
+      }
+
+      const stripe = require("stripe")(stripeSecretKey.value());
+
+      // Check if already has a Connect account
+      if (userData.stripeConnectAccountId) {
+        // Create a new account link for re-onboarding
+        const accountLink = await stripe.accountLinks.create({
+          account: userData.stripeConnectAccountId,
+          refresh_url: "coliway://connect-refresh",
+          return_url: "coliway://connect-return",
+          type: "account_onboarding",
+        });
+
+        return {
+          accountId: userData.stripeConnectAccountId,
+          onboardingUrl: accountLink.url,
+        };
+      }
+
+      // Create Express account
+      const account = await stripe.accounts.create({
+        type: "express",
+        country: "FR",
+        capabilities: {
+          transfers: { requested: true },
+        },
+        business_type: "individual",
+        metadata: { firebaseUID: request.auth.uid },
+        ...(userData.email ? { email: userData.email } : {}),
+        ...(userData.prenom || userData.nom
+          ? {
+              individual: {
+                first_name: userData.prenom || undefined,
+                last_name: userData.nom || undefined,
+              },
+            }
+          : {}),
+      });
+
+      // Save account ID to Firestore
+      await userRef.update({
+        stripeConnectAccountId: account.id,
+        stripeConnectStatus: "pending",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Create onboarding link
+      const accountLink = await stripe.accountLinks.create({
+        account: account.id,
+        refresh_url: "coliway://connect-refresh",
+        return_url: "coliway://connect-return",
+        type: "account_onboarding",
+      });
+
+      logger.info(`Compte Connect cree: ${account.id} pour livreur: ${request.auth.uid}`);
+
+      return {
+        accountId: account.id,
+        onboardingUrl: accountLink.url,
+      };
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error("Erreur creation compte Connect:", error);
+      throw new HttpsError("internal", "Erreur lors de la creation du compte Connect.");
+    }
+  }
+);
+
+/**
+ * Checks the status of a livreur's Stripe Connect account.
+ */
+exports.getConnectAccountStatus = onCall(
+  { secrets: [stripeSecretKey], region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
+    }
+
+    try {
+      const userDoc = await db.collection("users").doc(request.auth.uid).get();
+
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "Utilisateur introuvable.");
+      }
+
+      const userData = userDoc.data();
+
+      if (!userData.stripeConnectAccountId) {
+        return { status: "not_created" };
+      }
+
+      const stripe = require("stripe")(stripeSecretKey.value());
+      const account = await stripe.accounts.retrieve(userData.stripeConnectAccountId);
+
+      const status = account.charges_enabled && account.payouts_enabled
+        ? "active"
+        : account.details_submitted
+        ? "pending_verification"
+        : "onboarding_incomplete";
+
+      // Update status in Firestore
+      await db.collection("users").doc(request.auth.uid).update({
+        stripeConnectStatus: status,
+      });
+
+      return {
+        status,
+        chargesEnabled: account.charges_enabled,
+        payoutsEnabled: account.payouts_enabled,
+        detailsSubmitted: account.details_submitted,
+      };
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error("Erreur verification compte Connect:", error);
+      throw new HttpsError("internal", "Erreur lors de la verification du compte.");
+    }
+  }
+);
+
+/**
+ * Requests a payout (transfer) to a livreur's Stripe Connect account.
+ */
+exports.requestPayout = onCall(
+  { secrets: [stripeSecretKey], region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
+    }
+
+    try {
+      const userRef = db.collection("users").doc(request.auth.uid);
+      const userDoc = await userRef.get();
+
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "Utilisateur introuvable.");
+      }
+
+      const userData = userDoc.data();
+
+      if (userData.role !== "livreur") {
+        throw new HttpsError("permission-denied", "Seuls les livreurs peuvent demander un versement.");
+      }
+
+      if (!userData.stripeConnectAccountId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Vous devez d'abord configurer votre compte bancaire."
+        );
+      }
+
+      const stripe = require("stripe")(stripeSecretKey.value());
+
+      // Verify account is active
+      const account = await stripe.accounts.retrieve(userData.stripeConnectAccountId);
+      if (!account.payouts_enabled) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Votre compte bancaire n'est pas encore verifie. Completez l'inscription Stripe."
+        );
+      }
+
+      // Calculate available balance from delivered orders not yet paid out
+      const ordersSnapshot = await db
+        .collection("commandes")
+        .where("livreurId", "==", request.auth.uid)
+        .where("status", "==", "livree")
+        .where("paiementStatus", "==", "paye")
+        .get();
+
+      // Get commission rate
+      let commissionRate = 0.2;
+      const configSnap = await db.collection("config").doc("commission").get();
+      if (configSnap.exists && typeof configSnap.data().rate === "number") {
+        commissionRate = configSnap.data().rate;
+      }
+
+      // Filter orders that haven't been paid out yet
+      const unpaidOrders = [];
+      let availableAmount = 0;
+
+      for (const orderDoc of ordersSnapshot.docs) {
+        const orderData = orderDoc.data();
+        if (!orderData.livreurPaid) {
+          const price = orderData.prixFinal || orderData.prix || orderData.prixEstime || 0;
+          const livreurShare = price * (1 - commissionRate);
+          availableAmount += livreurShare;
+          unpaidOrders.push({ id: orderDoc.id, amount: livreurShare });
+        }
+      }
+
+      if (availableAmount < 1) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Solde insuffisant pour un versement (minimum 1 EUR)."
+        );
+      }
+
+      const amountCentimes = Math.round(availableAmount * 100);
+
+      // Create transfer to connected account
+      const transfer = await stripe.transfers.create({
+        amount: amountCentimes,
+        currency: "eur",
+        destination: userData.stripeConnectAccountId,
+        description: `Versement Coliway - ${unpaidOrders.length} course(s)`,
+        metadata: {
+          livreurId: request.auth.uid,
+          orderCount: unpaidOrders.length,
+        },
+      });
+
+      // Mark orders as paid out
+      const batch = db.batch();
+      for (const order of unpaidOrders) {
+        batch.update(db.collection("commandes").doc(order.id), {
+          livreurPaid: true,
+          livreurPaidAt: admin.firestore.FieldValue.serverTimestamp(),
+          stripeTransferId: transfer.id,
+        });
+      }
+
+      // Record the payout
+      const payoutRef = db.collection("versements").doc();
+      batch.set(payoutRef, {
+        livreurId: request.auth.uid,
+        montant: availableAmount,
+        montantCentimes: amountCentimes,
+        stripeTransferId: transfer.id,
+        stripeConnectAccountId: userData.stripeConnectAccountId,
+        nombreCourses: unpaidOrders.length,
+        status: "effectue",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      await batch.commit();
+
+      logger.info(
+        `Versement effectue: ${availableAmount.toFixed(2)} EUR (${unpaidOrders.length} courses) pour livreur: ${request.auth.uid}`
+      );
+
+      return {
+        success: true,
+        amount: availableAmount,
+        transferId: transfer.id,
+        orderCount: unpaidOrders.length,
+      };
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error("Erreur lors du versement:", error);
+      throw new HttpsError("internal", "Erreur lors du versement.");
+    }
+  }
+);
+
+/**
+ * Gets payout history for a livreur.
+ */
+exports.getPayoutHistory = onCall(
+  { region: "europe-west1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Vous devez etre connecte.");
+    }
+
+    try {
+      const snapshot = await db
+        .collection("versements")
+        .where("livreurId", "==", request.auth.uid)
+        .orderBy("createdAt", "desc")
+        .limit(20)
+        .get();
+
+      return snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          montant: data.montant,
+          nombreCourses: data.nombreCourses,
+          status: data.status,
+          createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
+        };
+      });
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      logger.error("Erreur historique versements:", error);
+      throw new HttpsError("internal", "Erreur lors de la recuperation de l'historique.");
+    }
+  }
+);
