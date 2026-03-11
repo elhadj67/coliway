@@ -30,6 +30,8 @@ const VEHICULE_OPTIONS = [
   { label: 'Utilitaire', value: 'utilitaire' },
 ];
 
+type ClientType = 'particulier' | 'professionnel';
+
 interface FormData {
   nom: string;
   prenom: string;
@@ -39,6 +41,14 @@ interface FormData {
   confirmPassword: string;
   vehicule: string;
   siret: string;
+  // Client pro fields
+  typeClient: ClientType;
+  raisonSociale: string;
+  siretClient: string;
+  tvaIntracommunautaire: string;
+  adresseFacturation: string;
+  contactFacturation: string;
+  emailFacturation: string;
 }
 
 interface FormErrors {
@@ -50,6 +60,9 @@ interface FormErrors {
   confirmPassword?: string;
   vehicule?: string;
   siret?: string;
+  raisonSociale?: string;
+  siretClient?: string;
+  adresseFacturation?: string;
   terms?: string;
   general?: string;
 }
@@ -95,6 +108,13 @@ export default function RegisterScreen() {
     confirmPassword: '',
     vehicule: 'voiture',
     siret: '',
+    typeClient: 'particulier',
+    raisonSociale: '',
+    siretClient: '',
+    tvaIntracommunautaire: '',
+    adresseFacturation: '',
+    contactFacturation: '',
+    emailFacturation: '',
   });
 
   const updateField = (field: keyof FormData, value: string) => {
@@ -164,6 +184,20 @@ export default function RegisterScreen() {
       newErrors.confirmPassword = 'Les mots de passe ne correspondent pas';
     }
 
+    if (role === 'client' && form.typeClient === 'professionnel') {
+      if (!form.raisonSociale.trim()) {
+        newErrors.raisonSociale = 'La raison sociale est requise';
+      }
+      if (!form.siretClient.trim()) {
+        newErrors.siretClient = 'Le numéro SIRET est requis';
+      } else if (form.siretClient.replace(/\s/g, '').length !== 14) {
+        newErrors.siretClient = 'Le SIRET doit contenir 14 chiffres';
+      }
+      if (!form.adresseFacturation.trim()) {
+        newErrors.adresseFacturation = 'L\'adresse de facturation est requise';
+      }
+    }
+
     if (role === 'livreur') {
       if (!form.vehicule) {
         newErrors.vehicule = 'Veuillez sélectionner un véhicule';
@@ -197,6 +231,15 @@ export default function RegisterScreen() {
         prenom: form.prenom.trim(),
         telephone: form.telephone.trim(),
         role,
+        // Client fields
+        typeClient: role === 'client' ? form.typeClient : undefined,
+        raisonSociale: form.typeClient === 'professionnel' ? form.raisonSociale.trim() : undefined,
+        siretClient: form.typeClient === 'professionnel' ? form.siretClient.trim() : undefined,
+        tvaIntracommunautaire: form.typeClient === 'professionnel' ? form.tvaIntracommunautaire.trim() || undefined : undefined,
+        adresseFacturation: form.typeClient === 'professionnel' ? form.adresseFacturation.trim() : undefined,
+        contactFacturation: form.typeClient === 'professionnel' ? form.contactFacturation.trim() || undefined : undefined,
+        emailFacturation: form.typeClient === 'professionnel' ? form.emailFacturation.trim() || undefined : undefined,
+        // Livreur fields
         vehicule: role === 'livreur' ? form.vehicule : undefined,
         permis: role === 'livreur' ? form.siret.trim() : undefined,
       });
@@ -313,6 +356,54 @@ export default function RegisterScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Client Type Selector */}
+          {role === 'client' && (
+            <View style={styles.clientTypeSelector}>
+              <TouchableOpacity
+                style={[
+                  styles.clientTypeButton,
+                  form.typeClient === 'particulier' && styles.clientTypeButtonActive,
+                ]}
+                onPress={() => updateField('typeClient', 'particulier')}
+              >
+                <Ionicons
+                  name="person-outline"
+                  size={18}
+                  color={form.typeClient === 'particulier' ? Colors.white : Colors.secondary}
+                />
+                <Text
+                  style={[
+                    styles.clientTypeText,
+                    form.typeClient === 'particulier' && styles.clientTypeTextActive,
+                  ]}
+                >
+                  Particulier
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.clientTypeButton,
+                  form.typeClient === 'professionnel' && styles.clientTypeButtonActive,
+                ]}
+                onPress={() => updateField('typeClient', 'professionnel')}
+              >
+                <Ionicons
+                  name="business-outline"
+                  size={18}
+                  color={form.typeClient === 'professionnel' ? Colors.white : Colors.secondary}
+                />
+                <Text
+                  style={[
+                    styles.clientTypeText,
+                    form.typeClient === 'professionnel' && styles.clientTypeTextActive,
+                  ]}
+                >
+                  Professionnel
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Error Banner */}
           {errors.general && (
             <View style={styles.errorBanner}>
@@ -368,6 +459,70 @@ export default function RegisterScreen() {
               keyboardType="phone-pad"
               autoComplete="tel"
             />
+
+            {/* Professional client fields */}
+            {role === 'client' && form.typeClient === 'professionnel' && (
+              <View style={styles.proSection}>
+                <Text style={styles.sectionTitle}>Informations entreprise</Text>
+
+                <Input
+                  label="Raison sociale *"
+                  icon="business-outline"
+                  placeholder="Nom de l'entreprise"
+                  value={form.raisonSociale}
+                  onChangeText={(text) => updateField('raisonSociale', text)}
+                  error={errors.raisonSociale}
+                  autoCapitalize="words"
+                />
+
+                <Input
+                  label="SIRET *"
+                  icon="document-text-outline"
+                  placeholder="123 456 789 01234"
+                  value={form.siretClient}
+                  onChangeText={(text) => updateField('siretClient', text)}
+                  error={errors.siretClient}
+                  keyboardType="numeric"
+                />
+
+                <Input
+                  label="N° TVA intracommunautaire"
+                  icon="receipt-outline"
+                  placeholder="FR 12 345678901 (optionnel)"
+                  value={form.tvaIntracommunautaire}
+                  onChangeText={(text) => updateField('tvaIntracommunautaire', text)}
+                  autoCapitalize="characters"
+                />
+
+                <Input
+                  label="Adresse de facturation *"
+                  icon="location-outline"
+                  placeholder="Adresse complète"
+                  value={form.adresseFacturation}
+                  onChangeText={(text) => updateField('adresseFacturation', text)}
+                  error={errors.adresseFacturation}
+                />
+
+                <Input
+                  label="Contact facturation"
+                  icon="person-outline"
+                  placeholder="Nom du contact (optionnel)"
+                  value={form.contactFacturation}
+                  onChangeText={(text) => updateField('contactFacturation', text)}
+                  autoCapitalize="words"
+                />
+
+                <Input
+                  label="Email de facturation"
+                  icon="mail-outline"
+                  placeholder="comptabilite@entreprise.com (optionnel)"
+                  value={form.emailFacturation}
+                  onChangeText={(text) => updateField('emailFacturation', text)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+            )}
 
             <Input
               label="Mot de passe"
@@ -622,6 +777,42 @@ const styles = StyleSheet.create({
   },
   halfInput: {
     flex: 1,
+  },
+  clientTypeSelector: {
+    flexDirection: 'row',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: 3,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  clientTypeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: 6,
+  },
+  clientTypeButtonActive: {
+    backgroundColor: Colors.secondary,
+  },
+  clientTypeText: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.secondary,
+  },
+  clientTypeTextActive: {
+    color: Colors.white,
+  },
+  proSection: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.base,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    marginBottom: Spacing.sm,
   },
   livreurSection: {
     marginTop: Spacing.sm,

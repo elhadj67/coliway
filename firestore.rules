@@ -27,17 +27,9 @@ service cloud.firestore {
 
     // Commandes collection
     match /commandes/{commandeId} {
-      allow read: if request.auth != null && (
-        resource.data.clientId == request.auth.uid ||
-        resource.data.livreurId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      );
+      allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update: if request.auth != null && (
-        resource.data.clientId == request.auth.uid ||
-        resource.data.livreurId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      );
+      allow update: if request.auth != null;
       allow delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
@@ -80,6 +72,18 @@ service cloud.firestore {
     }
     match /litiges_archive/{docId} {
       allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Config (pricing, commission, etc.) - readable by all, writable by admin
+    match /config/{configId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Reclamations
+    match /reclamations/{docId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
     }
 
     // Messages

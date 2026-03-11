@@ -1,10 +1,11 @@
 import React, { useRef, useEffect } from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { StyleSheet, View, ViewStyle, Platform } from 'react-native';
 import MapView, {
   Marker,
   Polyline,
   Region,
   PROVIDER_GOOGLE,
+  PROVIDER_DEFAULT,
 } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -74,7 +75,7 @@ const Map: React.FC<MapProps> = ({
     <MapView
       ref={mapRef}
       style={[styles.map, style]}
-      provider={PROVIDER_GOOGLE}
+      provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
       initialRegion={initialRegion}
       onRegionChangeComplete={onRegionChange}
       showsUserLocation={showUserLocation}

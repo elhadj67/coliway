@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Build outputs - exclude native dirs to force managed prebuild
+android/
+ios/build/
+ios/Pods/
+
+# Test files
+__tests__/
+coverage/
+
+# Dev files
+.expo/
+*.log

@@ -68,6 +68,15 @@ export default function AdminTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="tarifs"
+        options={{
+          title: 'Tarifs',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="pricetag-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profil',

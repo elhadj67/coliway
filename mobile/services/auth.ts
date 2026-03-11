@@ -20,6 +20,8 @@ import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from './firebase';
 import { UserRole } from '@/constants/config';
 
+export type ClientType = 'particulier' | 'professionnel';
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -29,6 +31,15 @@ export interface UserProfile {
   role: UserRole;
   photoURL?: string;
   adresse?: string;
+  // Client fields
+  typeClient?: ClientType;
+  raisonSociale?: string;
+  siretClient?: string;
+  tvaIntracommunautaire?: string;
+  adresseFacturation?: string;
+  contactFacturation?: string;
+  emailFacturation?: string;
+  // Livreur fields
   vehicule?: string;
   immatriculation?: string;
   permis?: string;
@@ -56,6 +67,15 @@ export interface SignUpData {
   prenom: string;
   telephone: string;
   role: UserRole;
+  // Client pro fields
+  typeClient?: ClientType;
+  raisonSociale?: string;
+  siretClient?: string;
+  tvaIntracommunautaire?: string;
+  adresseFacturation?: string;
+  contactFacturation?: string;
+  emailFacturation?: string;
+  // Livreur fields
   vehicule?: string;
   permis?: string;
 }
@@ -83,6 +103,16 @@ export async function signUp(
     updatedAt: serverTimestamp(),
   };
 
+  // Client type
+  if (userData.typeClient) userProfile.typeClient = userData.typeClient;
+  if (userData.raisonSociale) userProfile.raisonSociale = userData.raisonSociale;
+  if (userData.siretClient) userProfile.siretClient = userData.siretClient;
+  if (userData.tvaIntracommunautaire) userProfile.tvaIntracommunautaire = userData.tvaIntracommunautaire;
+  if (userData.adresseFacturation) userProfile.adresseFacturation = userData.adresseFacturation;
+  if (userData.contactFacturation) userProfile.contactFacturation = userData.contactFacturation;
+  if (userData.emailFacturation) userProfile.emailFacturation = userData.emailFacturation;
+
+  // Livreur fields
   if (userData.vehicule) userProfile.vehicule = userData.vehicule;
   if (userData.permis) userProfile.permis = userData.permis;
   if (userData.role === 'livreur') {

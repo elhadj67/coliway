@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,9 +23,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { COLIS_TYPES, ColisType, DEFAULT_MAP_REGION } from '../../constants/config';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../constants/theme';
 import { getRouteInfo } from '../../services/routing';
-import { calculatePrice, TRAFFIC_SURCHARGE, MIN_DELIVERY_TIME } from '../../services/pricing';
+import { calculatePriceAsync, TRAFFIC_SURCHARGE, MIN_DELIVERY_TIME } from '../../services/pricing';
 
 const TOTAL_STEPS = 4;
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const MINIMIZED_HEIGHT = 90;
 
 export default function NouvelleCommandeScreen() {
   const router = useRouter();
@@ -81,6 +85,21 @@ export default function NouvelleCommandeScreen() {
   const [trafficLevel, setTrafficLevel] = useState<string>('inconnu');
   const [loadingRoute, setLoadingRoute] = useState(false);
 
+  // Form collapse/expand
+  const [formMinimized, setFormMinimized] = useState(false);
+  const formAnim = useRef(new Animated.Value(1)).current;
+
+  const toggleForm = () => {
+    const toValue = formMinimized ? 1 : 0;
+    Animated.spring(formAnim, {
+      toValue,
+      useNativeDriver: false,
+      friction: 8,
+      tension: 65,
+    }).start();
+    setFormMinimized(!formMinimized);
+  };
+
   // Calculate route & price when both coordinates are set
   useEffect(() => {
     if (!departCoords || !arriveeCoords) return;
@@ -100,7 +119,8 @@ export default function NouvelleCommandeScreen() {
         setEstimatedTime(totalTime);
         setTrafficLevel(route.trafficLevel);
 
-        const basePrice = calculatePrice(route.distanceKm, selectedColis.id);
+        const clientType = profile?.typeClient || 'particulier';
+        const basePrice = await calculatePriceAsync(route.distanceKm, selectedColis.id, clientType);
         const surcharge = TRAFFIC_SURCHARGE[route.trafficLevel] || 1.0;
         setEstimatedPrice(Math.round(basePrice * surcharge * 100) / 100);
       } catch {
@@ -110,7 +130,10 @@ export default function NouvelleCommandeScreen() {
           const dLng = departCoords.longitude - arriveeCoords.longitude;
           const approxKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111;
           setEstimatedDistance(Math.round(approxKm * 10) / 10);
-          setEstimatedPrice(calculatePrice(approxKm, selectedColis.id));
+          const clientType = profile?.typeClient || 'particulier';
+          calculatePriceAsync(approxKm, selectedColis.id, clientType).then((p) => {
+            if (!cancelled) setEstimatedPrice(p);
+          });
         }
       } finally {
         if (!cancelled) setLoadingRoute(false);
@@ -697,6 +720,41 @@ export default function NouvelleCommandeScreen() {
     }
   };
 
+  const formHeight = formAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [MINIMIZED_HEIGHT, SCREEN_HEIGHT],
+  });
+
+  const mapHeight = formAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [SCREEN_HEIGHT - MINIMIZED_HEIGHT - 60, 0],
+  });
+
+  const formContentOpacity = formAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, 0, 1],
+  });
+
+  const mapRegion = departCoords && arriveeCoords
+    ? {
+        latitude: (departCoords.latitude + arriveeCoords.latitude) / 2,
+        longitude: (departCoords.longitude + arriveeCoords.longitude) / 2,
+        latitudeDelta: Math.abs(departCoords.latitude - arriveeCoords.latitude) * 2.5 + 0.01,
+        longitudeDelta: Math.abs(departCoords.longitude - arriveeCoords.longitude) * 2.5 + 0.01,
+      }
+    : departCoords
+    ? { latitude: departCoords.latitude, longitude: departCoords.longitude, latitudeDelta: 0.05, longitudeDelta: 0.05 }
+    : DEFAULT_MAP_REGION;
+
+  const mapMarkers = [
+    ...(departCoords
+      ? [{ id: 'depart', coordinate: departCoords, title: 'Départ', color: Colors.secondary }]
+      : []),
+    ...(arriveeCoords
+      ? [{ id: 'arrivee', coordinate: arriveeCoords, title: 'Arrivée', color: Colors.success }]
+      : []),
+  ];
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -715,41 +773,67 @@ export default function NouvelleCommandeScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      {/* Progress Bar */}
-      {renderProgressBar()}
+      {/* Full Map (visible when form is minimized) */}
+      <Animated.View style={[styles.fullMapContainer, { height: mapHeight }]}>
+        <Map
+          initialRegion={mapRegion}
+          markers={mapMarkers}
+          style={styles.fullMap}
+        />
+      </Animated.View>
 
-      {/* Step Content */}
-      <ScrollView
-        style={styles.scrollContent}
-        contentContainerStyle={styles.scrollContentInner}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="always"
-        nestedScrollEnabled
-      >
-        {renderCurrentStep()}
-      </ScrollView>
-
-      {/* Navigation Buttons */}
-      {currentStep < 4 && (
-        <View style={styles.navigationButtons}>
-          {currentStep > 1 && (
-            <Button
-              title="Précédent"
-              onPress={handlePrevious}
-              variant="outline"
-              icon="arrow-back"
-              style={styles.navButton}
-            />
-          )}
-          <Button
-            title={currentStep === 3 ? 'Confirmer' : 'Suivant'}
-            onPress={currentStep === 3 ? handleConfirmOrder : handleNext}
-            icon={currentStep === 3 ? 'checkmark-circle' : 'arrow-forward'}
-            loading={loading}
-            style={[styles.navButton, currentStep === 1 && styles.navButtonFull]}
+      {/* Collapsible Form */}
+      <Animated.View style={[styles.formWrapper, { height: formHeight }]}>
+        {/* Collapse/Expand Handle */}
+        <TouchableOpacity style={styles.collapseHandle} onPress={toggleForm} activeOpacity={0.7}>
+          <View style={styles.handleBar} />
+          <Ionicons
+            name={formMinimized ? 'chevron-up' : 'chevron-down'}
+            size={22}
+            color={Colors.textLight}
           />
-        </View>
-      )}
+        </TouchableOpacity>
+
+        {/* Form Content (hidden when minimized) */}
+        <Animated.View style={[styles.formContent, { opacity: formContentOpacity }]}>
+          {/* Progress Bar */}
+          {renderProgressBar()}
+
+          {/* Step Content */}
+          <ScrollView
+            style={styles.scrollContent}
+            contentContainerStyle={styles.scrollContentInner}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="always"
+            nestedScrollEnabled
+            scrollEnabled={!formMinimized}
+          >
+            {renderCurrentStep()}
+          </ScrollView>
+
+          {/* Navigation Buttons */}
+          {currentStep < 4 && (
+            <View style={styles.navigationButtons}>
+              {currentStep > 1 && (
+                <Button
+                  title="Précédent"
+                  onPress={handlePrevious}
+                  variant="outline"
+                  icon="arrow-back"
+                  style={styles.navButton}
+                />
+              )}
+              <Button
+                title={currentStep === 3 ? 'Confirmer' : 'Suivant'}
+                onPress={currentStep === 3 ? handleConfirmOrder : handleNext}
+                icon={currentStep === 3 ? 'checkmark-circle' : 'arrow-forward'}
+                loading={loading}
+                style={[styles.navButton, currentStep === 1 && styles.navButtonFull]}
+              />
+            </View>
+          )}
+        </Animated.View>
+      </Animated.View>
     </KeyboardAvoidingView>
   );
 }
@@ -784,6 +868,53 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 40,
+  },
+  fullMapContainer: {
+    overflow: 'hidden',
+  },
+  fullMap: {
+    width: '100%',
+    height: '100%',
+  },
+  formWrapper: {
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  collapseHandle: {
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 4,
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    marginBottom: 6,
+  },
+  handleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingBottom: 4,
+  },
+  handleText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textLight,
+    fontWeight: Typography.weights.medium,
+  },
+  formContent: {
+    flex: 1,
   },
   progressContainer: {
     flexDirection: 'row',

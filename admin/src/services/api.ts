@@ -445,6 +445,45 @@ export async function updatePrixConfig(
 }
 
 // ──────────────────────────────────────────────
+// Pricing Grid (config/pricing) - pro/particulier
+// ──────────────────────────────────────────────
+export interface PricingEntry {
+  base: number;
+  perKm: number[];
+  tiers: number[];
+}
+
+export type PricingGrid = Record<string, PricingEntry>;
+
+export interface PricingConfig {
+  particulier: PricingGrid;
+  professionnel: PricingGrid;
+}
+
+export async function getPricingConfig(): Promise<PricingConfig | null> {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'pricing'));
+    if (snap.exists()) {
+      const data = snap.data();
+      return {
+        particulier: (data.particulier || {}) as PricingGrid,
+        professionnel: (data.professionnel || {}) as PricingGrid,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function savePricingConfig(config: PricingConfig): Promise<void> {
+  await setDoc(doc(db, 'config', 'pricing'), {
+    ...config,
+    updatedAt: Timestamp.now(),
+  });
+}
+
+// ──────────────────────────────────────────────
 // Commission
 // ──────────────────────────────────────────────
 export async function getCommissionRate(): Promise<number> {

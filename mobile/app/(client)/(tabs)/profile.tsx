@@ -285,7 +285,13 @@ export default function ClientProfileScreen() {
           {profile?.prenom} {profile?.nom}
         </Text>
         <Text style={styles.userRole}>
-          {profile?.role === 'client' ? 'Client' : profile?.role === 'livreur' ? 'Livreur' : 'Admin'}
+          {profile?.role === 'client'
+            ? profile?.typeClient === 'professionnel'
+              ? 'Client Professionnel'
+              : 'Client Particulier'
+            : profile?.role === 'livreur'
+            ? 'Livreur'
+            : 'Admin'}
         </Text>
       </View>
 
@@ -334,6 +340,73 @@ export default function ClientProfileScreen() {
           </View>
         </View>
       </View>
+
+      {/* Professional client info */}
+      {profile?.typeClient === 'professionnel' && (
+        <View style={styles.infoCard}>
+          <Text style={styles.sectionTitle}>Informations professionnelles</Text>
+
+          {profile.raisonSociale ? (
+            <View style={styles.infoRow}>
+              <Ionicons name="business-outline" size={20} color={Colors.textLight} />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Raison sociale</Text>
+                <Text style={styles.infoValue}>{profile.raisonSociale}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {profile.siretClient ? (
+            <View style={styles.infoRow}>
+              <Ionicons name="document-outline" size={20} color={Colors.textLight} />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>SIRET</Text>
+                <Text style={styles.infoValue}>{profile.siretClient}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {profile.tvaIntracommunautaire ? (
+            <View style={styles.infoRow}>
+              <Ionicons name="receipt-outline" size={20} color={Colors.textLight} />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>TVA Intracommunautaire</Text>
+                <Text style={styles.infoValue}>{profile.tvaIntracommunautaire}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {profile.adresseFacturation ? (
+            <View style={styles.infoRow}>
+              <Ionicons name="location-outline" size={20} color={Colors.textLight} />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Adresse de facturation</Text>
+                <Text style={styles.infoValue}>{profile.adresseFacturation}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {profile.contactFacturation ? (
+            <View style={styles.infoRow}>
+              <Ionicons name="person-outline" size={20} color={Colors.textLight} />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Contact facturation</Text>
+                <Text style={styles.infoValue}>{profile.contactFacturation}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {profile.emailFacturation ? (
+            <View style={styles.infoRow}>
+              <Ionicons name="mail-outline" size={20} color={Colors.textLight} />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Email facturation</Text>
+                <Text style={styles.infoValue}>{profile.emailFacturation}</Text>
+              </View>
+            </View>
+          ) : null}
+        </View>
+      )}
 
       {/* Actions */}
       <View style={styles.actionsCard}>

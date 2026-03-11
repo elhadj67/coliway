@@ -18,12 +18,19 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.coliway.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "config": {
         "googleMapsApiKey": "AIzaSyBmB58zih7ICTRrycl1bVfB_OybotqKxW4"
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Coliway utilise votre position pour localiser les livreurs et calculer les itinéraires.",
-        "NSLocationAlwaysUsageDescription": "Coliway utilise votre position en arrière-plan pour le suivi des livraisons."
+        "NSLocationAlwaysUsageDescription": "Coliway utilise votre position en arrière-plan pour le suivi des livraisons.",
+        "NSCameraUsageDescription": "Coliway utilise la camera pour prendre des photos de colis et documents.",
+        "NSPhotoLibraryUsageDescription": "Coliway accede a vos photos pour joindre des images aux commandes.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "android": {
@@ -39,12 +46,14 @@
       },
       "googleServicesFile": "./google-services.json",
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
+      "./plugins/fix-jitpack",
       "expo-router",
       "expo-location",
       "expo-notifications",
@@ -60,6 +69,19 @@
           "enableGooglePay": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "88bd38f3-7af6-4756-b824-e88e199743e6"
+      }
+    },
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/88bd38f3-7af6-4756-b824-e88e199743e6"
+    },
+    "owner": "coliway"
   }
 }

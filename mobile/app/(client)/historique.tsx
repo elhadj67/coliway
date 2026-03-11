@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -158,6 +159,18 @@ export default function HistoriqueScreen() {
           </Text>
         </View>
       </View>
+
+      {item.photoPreuve && (
+        <View style={styles.proofRow}>
+          <Image source={{ uri: item.photoPreuve }} style={styles.proofThumb} />
+          <View style={styles.proofInfo}>
+            <Text style={styles.proofLabel}>Preuve de livraison</Text>
+            {item.commentairePreuve && (
+              <Text style={styles.proofComment} numberOfLines={2}>{item.commentairePreuve}</Text>
+            )}
+          </View>
+        </View>
+      )}
 
       <View style={styles.orderFooter}>
         <Text style={styles.orderPrice}>
@@ -394,6 +407,34 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.lg,
     fontWeight: Typography.weights.bold,
     color: Colors.primary,
+  },
+  proofRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  proofThumb: {
+    width: 50,
+    height: 50,
+    borderRadius: BorderRadius.sm,
+  },
+  proofInfo: {
+    flex: 1,
+  },
+  proofLabel: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
+  },
+  proofComment: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textLight,
+    marginTop: 2,
+    fontStyle: 'italic',
   },
   orderArrow: {
     width: 28,

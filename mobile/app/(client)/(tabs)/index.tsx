@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,7 +31,8 @@ import { COLIS_TYPES, ColisType, DEFAULT_MAP_REGION } from '../../../constants/c
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../../constants/theme';
 import { getRouteInfo, RouteInfo } from '../../../services/routing';
 import {
-  calculatePrice,
+  calculatePriceAsync,
+  fetchPricingConfig,
   TRAFFIC_SURCHARGE,
   MIN_DELIVERY_TIME,
 } from '../../../services/pricing';
@@ -38,7 +40,9 @@ import { useAuth } from '../../../hooks/useAuth';
 import { updateProfile, SavedAddress } from '../../../services/auth';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const MAP_HEIGHT = SCREEN_HEIGHT * 0.25;
+const MAP_HEIGHT_SMALL = SCREEN_HEIGHT * 0.25;
+const MAP_HEIGHT_LARGE = SCREEN_HEIGHT * 0.65;
+const CARD_MINIMIZED_HEIGHT = 100;
 
 export default function ClientHomeScreen() {
   const router = useRouter();
@@ -63,7 +67,37 @@ export default function ClientHomeScreen() {
   const [savingAddress, setSavingAddress] = useState(false);
   const [addressTarget, setAddressTarget] = useState<'depart' | 'arrivee'>('depart');
 
+  // Card collapse/expand
+  const [cardMinimized, setCardMinimized] = useState(false);
+  const cardAnim = useRef(new Animated.Value(0)).current; // 0 = expanded, 1 = minimized
+
+  const toggleCard = () => {
+    const toValue = cardMinimized ? 0 : 1;
+    Animated.spring(cardAnim, {
+      toValue,
+      useNativeDriver: false,
+      friction: 8,
+      tension: 65,
+    }).start();
+    setCardMinimized(!cardMinimized);
+  };
+
+  const mapHeight = cardAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [MAP_HEIGHT_SMALL, MAP_HEIGHT_LARGE],
+  });
+
+  const cardContentOpacity = cardAnim.interpolate({
+    inputRange: [0, 0.3],
+    outputRange: [1, 0],
+  });
+
   const savedAddresses: SavedAddress[] = profile?.adressesSauvegardees || [];
+
+  // Preload pricing config from Firestore
+  useEffect(() => {
+    fetchPricingConfig();
+  }, []);
 
   const handleSaveNewAddress = async () => {
     if (!user || !newAddressLabel.trim() || !newAddressValue.trim()) return;
@@ -214,7 +248,8 @@ export default function ClientHomeScreen() {
         setTrafficLevel(route.trafficLevel);
 
         // Price = base colis price + distance tiers + traffic surcharge
-        const basePrice = calculatePrice(route.distanceKm, selectedColis.id);
+        const clientType = profile?.typeClient || 'particulier';
+        const basePrice = await calculatePriceAsync(route.distanceKm, selectedColis.id, clientType);
         const surcharge = TRAFFIC_SURCHARGE[route.trafficLevel] || 1.0;
         setEstimatedPrice(Math.round(basePrice * surcharge * 100) / 100);
       } catch {
@@ -300,14 +335,14 @@ export default function ClientHomeScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Map Section */}
-      <View style={styles.mapContainer}>
+      <Animated.View style={[styles.mapContainer, { height: mapHeight }]}>
         <Map
           initialRegion={mapRegion}
           markers={mapMarkers}
           showUserLocation
           style={styles.map}
         />
-      </View>
+      </Animated.View>
 
       {/* Bottom Card */}
       <ScrollView
@@ -316,10 +351,28 @@ export default function ClientHomeScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="always"
         nestedScrollEnabled
+        scrollEnabled={!cardMinimized}
       >
-        <View style={styles.cardHandle} />
+        {/* Collapse/Expand Handle */}
+        <TouchableOpacity style={styles.cardHandleArea} onPress={toggleCard} activeOpacity={0.7}>
+          <View style={styles.cardHandle} />
+          <Ionicons
+            name={cardMinimized ? 'chevron-up' : 'chevron-down'}
+            size={22}
+            color={Colors.textLight}
+          />
+        </TouchableOpacity>
 
-        <Text style={styles.title}>Envoyer un colis</Text>
+        <Animated.View style={{ opacity: cardContentOpacity }}>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Envoyer un colis</Text>
+          {profile?.typeClient === 'professionnel' && (
+            <View style={styles.proBadge}>
+              <Ionicons name="briefcase" size={12} color={Colors.white} />
+              <Text style={styles.proBadgeText}>PRO</Text>
+            </View>
+          )}
+        </View>
 
         {/* Saved Addresses */}
         <View style={styles.savedSection}>
@@ -496,6 +549,7 @@ export default function ClientHomeScreen() {
           <Ionicons name="add-circle-outline" size={20} color={Colors.secondary} />
           <Text style={styles.newOrderDirectText}>Nouvelle commande sans estimation</Text>
         </TouchableOpacity>
+        </Animated.View>
       </ScrollView>
 
       {/* Modal ajouter adresse */}
@@ -571,7 +625,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   mapContainer: {
-    height: MAP_HEIGHT,
+    overflow: 'hidden',
   },
   map: {
     width: '100%',
@@ -588,8 +642,13 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     padding: Spacing.lg,
-    paddingTop: Spacing.md,
+    paddingTop: 0,
     paddingBottom: 40,
+  },
+  cardHandleArea: {
+    alignItems: 'center',
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
   },
   cardHandle: {
     width: 40,
@@ -597,13 +656,43 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: Spacing.base,
+    marginBottom: 6,
+  },
+  cardHandleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.xs,
+  },
+  cardHandleText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textLight,
+    fontWeight: Typography.weights.medium,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
   },
   title: {
     fontSize: Typography.sizes.xxl,
     fontWeight: Typography.weights.bold,
     color: Colors.primary,
-    marginBottom: Spacing.lg,
+  },
+  proBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.secondary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+  },
+  proBadgeText: {
+    fontSize: 11,
+    fontWeight: Typography.weights.bold,
+    color: Colors.white,
   },
   addressSection: {
     marginBottom: Spacing.md,

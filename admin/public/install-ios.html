@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Installer Coliway iOS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .card { background: white; border-radius: 20px; padding: 40px 30px; max-width: 380px; width: 90%; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .logo { width: 80px; height: 80px; background: #1B3A5C; border-radius: 18px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; color: white; font-size: 32px; font-weight: bold; }
+    h1 { color: #1B3A5C; font-size: 24px; margin-bottom: 8px; }
+    p { color: #666; font-size: 15px; line-height: 1.5; margin-bottom: 24px; }
+    .btn { display: inline-block; background: #1B3A5C; color: white; text-decoration: none; padding: 16px 32px; border-radius: 12px; font-size: 18px; font-weight: 600; width: 100%; }
+    .btn:active { background: #142d47; }
+    .note { color: #999; font-size: 12px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">C</div>
+    <h1>Coliway</h1>
+    <p>Appuyez sur le bouton ci-dessous pour installer l'application sur votre iPhone.</p>
+    <a class="btn" href="itms-services://?action=download-manifest&url=https://coliway-app.web.app/install.plist">
+      Installer Coliway
+    </a>
+    <p class="note">Apres l'installation, allez dans Reglages > General > Gestion des appareils pour faire confiance au certificat developpeur.</p>
+  </div>
+</body>
+</html>

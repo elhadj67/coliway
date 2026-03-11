@@ -51,6 +51,18 @@ exports.envoyerNotifCommande = notifications.envoyerNotifCommande;
 exports.markNotificationRead = notifications.markNotificationRead;
 
 // ============================================================
+// Order notifications (firebase-functions v1 Firestore trigger)
+// ============================================================
+const orderNotifications = require("./orderNotifications");
+exports.onCommandeUpdated = orderNotifications.onCommandeUpdated;
+
+// ============================================================
+// Chat notifications (firebase-functions v1 Firestore trigger)
+// ============================================================
+const chatNotifications = require("./chatNotifications");
+exports.onMessageCreated = chatNotifications.onMessageCreated;
+
+// ============================================================
 // Litiges (firebase-functions v1 Firestore trigger)
 // ============================================================
 const litiges = require("./litiges");

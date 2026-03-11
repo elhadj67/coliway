@@ -43,8 +43,10 @@ export interface Order extends OrderData {
   status: OrderStatus;
   prixFinal?: number;
   noteLivreur?: number;
+  noteClient?: number;
   codeConfirmation?: string;
   photoPreuve?: string;
+  commentairePreuve?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   acceptedAt?: Timestamp;
@@ -225,6 +227,39 @@ export async function rateDelivery(
     await updateDoc(livreurRef, {
       note: Math.round(newNote * 10) / 10,
       nombreLivraisons: nombreLivraisons + 1,
+      updatedAt: serverTimestamp(),
+    });
+  }
+}
+
+/**
+ * Rates a client by updating the order and the client's average rating.
+ */
+export async function rateClient(
+  orderId: string,
+  clientId: string,
+  rating: number
+): Promise<void> {
+  const orderRef = doc(db, 'commandes', orderId);
+  await updateDoc(orderRef, {
+    noteClient: rating,
+    updatedAt: serverTimestamp(),
+  });
+
+  const clientRef = doc(db, 'users', clientId);
+  const clientDoc = await getDoc(clientRef);
+
+  if (clientDoc.exists()) {
+    const clientData = clientDoc.data();
+    const currentNote = clientData.noteClient || 5;
+    const nombreCommandes = clientData.nombreCommandesNotees || 0;
+
+    const newNote =
+      (currentNote * nombreCommandes + rating) / (nombreCommandes + 1);
+
+    await updateDoc(clientRef, {
+      noteClient: Math.round(newNote * 10) / 10,
+      nombreCommandesNotees: nombreCommandes + 1,
       updatedAt: serverTimestamp(),
     });
   }

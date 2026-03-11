@@ -27,7 +27,7 @@ import {
   Position,
 } from '@/services/location';
 import { updateProfile } from '@/services/auth';
-import { COLIS_TYPES, DEFAULT_MAP_REGION } from '@/constants/config';
+import { COLIS_TYPES, COLIS_VEHICULES, DEFAULT_MAP_REGION } from '@/constants/config';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 
 function getColisLabel(typeId: string): string {
@@ -155,11 +155,19 @@ export default function LivreurDashboard() {
     }
   }, [profile]);
 
-  // Subscribe to available orders
+  // Subscribe to available orders, filtered by vehicle compatibility
+  const livreurVehicule = (profile as any)?.vehicule || 'voiture';
+
   useEffect(() => {
     const unsubscribe = getAvailableOrders(
       (orders) => {
-        setAvailableOrders(orders);
+        // Filter orders compatible with the livreur's vehicle
+        const compatible = orders.filter((order) => {
+          const vehiculesAutorises = COLIS_VEHICULES[order.typeColis];
+          if (!vehiculesAutorises) return true; // Unknown colis type → show all
+          return vehiculesAutorises.includes(livreurVehicule);
+        });
+        setAvailableOrders(compatible);
         setLoading(false);
         setRefreshing(false);
       },
@@ -170,7 +178,7 @@ export default function LivreurDashboard() {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [livreurVehicule]);
 
   // Update livreur position in Firestore
   useEffect(() => {

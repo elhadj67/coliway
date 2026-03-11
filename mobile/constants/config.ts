@@ -27,7 +27,17 @@ export interface ColisType {
   icon: string;
   poidsMax: number;
   conditions: string[];
+  vehiculesCompatibles: string[];
 }
+
+// Mapping type de colis → véhicules autorisés
+export const COLIS_VEHICULES: Record<string, string[]> = {
+  enveloppe: ['velo', 'scooter', 'moto', 'voiture', 'camionnette'],
+  petit: ['velo', 'scooter', 'moto', 'voiture', 'camionnette'],
+  moyen: ['voiture', 'camionnette'],
+  gros: ['camionnette', 'camion'],
+  palette: ['camionnette', 'camion'],
+};
 
 export const COLIS_TYPES: ColisType[] = [
   {
@@ -35,6 +45,7 @@ export const COLIS_TYPES: ColisType[] = [
     label: 'Enveloppe',
     icon: 'mail',
     poidsMax: 0.5,
+    vehiculesCompatibles: ['velo', 'scooter', 'moto', 'voiture', 'camionnette'],
     conditions: [
       'Documents, lettres, format A4 max',
       'Poids max : 0,5 kg',
@@ -46,6 +57,7 @@ export const COLIS_TYPES: ColisType[] = [
     label: 'Petit Colis',
     icon: 'cube-outline',
     poidsMax: 5,
+    vehiculesCompatibles: ['velo', 'scooter', 'moto', 'voiture', 'camionnette'],
     conditions: [
       'Taille : type boite a chaussures',
       'Poids max : 5 kg',
@@ -57,10 +69,12 @@ export const COLIS_TYPES: ColisType[] = [
     label: 'Moyen Colis',
     icon: 'cube',
     poidsMax: 15,
+    vehiculesCompatibles: ['voiture', 'camionnette'],
     conditions: [
       'Taille : type carton de demenagement petit',
       'Poids max : 15 kg',
       'Emballage solide requis',
+      'Vehicule : voiture ou camionnette',
     ],
   },
   {
@@ -68,11 +82,13 @@ export const COLIS_TYPES: ColisType[] = [
     label: 'Gros Colis',
     icon: 'archive',
     poidsMax: 30,
+    vehiculesCompatibles: ['camionnette', 'camion'],
     conditions: [
       'Taille : type carton de demenagement grand',
       'Poids max : 30 kg',
       'Manutention par le livreur non garantie',
       'Emballage renforce obligatoire',
+      'Vehicule : camionnette ou camion',
     ],
   },
   {
@@ -80,10 +96,11 @@ export const COLIS_TYPES: ColisType[] = [
     label: 'Palette',
     icon: 'grid',
     poidsMax: 500,
+    vehiculesCompatibles: ['camionnette', 'camion'],
     conditions: [
       'Palette standard (120x80 cm)',
       'Poids max : 500 kg',
-      'Vehicule utilitaire requis',
+      'Vehicule : camionnette ou camion',
       'Chargement / dechargement a votre charge',
     ],
   },

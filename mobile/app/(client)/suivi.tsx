@@ -9,6 +9,7 @@ import {
   Dimensions,
   ScrollView,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,11 +18,12 @@ import Button from '../../components/Button';
 import {
   subscribeToOrder,
   updateOrderStatus,
+  rateDelivery,
   Order,
 } from '../../services/orders';
 import { ORDER_STATUS, OrderStatus } from '../../constants/config';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '../../constants/theme';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -48,6 +50,17 @@ export default function SuiviScreen() {
   const [livreur, setLivreur] = useState<LivreurInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [hasRated, setHasRated] = useState(false);
+  const [nearbyLivreurs, setNearbyLivreurs] = useState<Array<{
+    id: string;
+    prenom: string;
+    nom: string;
+    vehicule?: string;
+    position: { latitude: number; longitude: number };
+  }>>([]);
 
   // Subscribe to order updates
   useEffect(() => {
@@ -60,6 +73,38 @@ export default function SuiviScreen() {
 
     return () => unsubscribe();
   }, [orderId]);
+
+  // Subscribe to nearby available livreurs when waiting
+  useEffect(() => {
+    if (order?.status !== 'en_attente') {
+      setNearbyLivreurs([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'users'),
+      where('role', '==', 'livreur'),
+      where('disponible', '==', true)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const drivers: typeof nearbyLivreurs = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.position?.latitude && data.position?.longitude) {
+          drivers.push({
+            id: docSnap.id,
+            prenom: data.prenom || '',
+            nom: data.nom || '',
+            vehicule: data.vehicule,
+            position: { latitude: data.position.latitude, longitude: data.position.longitude },
+          });
+        }
+      });
+      setNearbyLivreurs(drivers);
+    });
+
+    return () => unsubscribe();
+  }, [order?.status]);
 
   // Subscribe to livreur position when order has a livreur
   useEffect(() => {
@@ -126,6 +171,20 @@ export default function SuiviScreen() {
     }
   };
 
+  const handleSubmitRating = async () => {
+    if (!orderId || !order?.livreurId || selectedRating === 0) return;
+    setSubmittingRating(true);
+    try {
+      await rateDelivery(orderId, order.livreurId, selectedRating);
+      setHasRated(true);
+    } catch (error) {
+      console.error('Error rating livreur:', error);
+    } finally {
+      setSubmittingRating(false);
+      setShowRatingModal(false);
+    }
+  };
+
   const canCancel =
     order?.status === 'en_attente' || order?.status === 'acceptee';
 
@@ -178,15 +237,17 @@ export default function SuiviScreen() {
       });
     }
 
+    const vehicleIcons: Record<string, string> = {
+      voiture: 'car',
+      scooter: 'bicycle',
+      velo: 'bicycle',
+      moto: 'bicycle',
+      camionnette: 'bus',
+      camion: 'bus',
+      utilitaire: 'bus',
+    };
+
     if (livreur?.position) {
-      const vehicleIcons: Record<string, string> = {
-        voiture: 'car',
-        scooter: 'bicycle',
-        velo: 'bicycle',
-        moto: 'bicycle',
-        camionnette: 'bus',
-        utilitaire: 'bus',
-      };
       markers.push({
         id: 'livreur',
         coordinate: {
@@ -196,6 +257,19 @@ export default function SuiviScreen() {
         title: `${livreur.prenom} ${livreur.nom}`,
         description: livreur.vehicule || 'Livreur',
         icon: vehicleIcons[livreur.vehicule || ''] || 'car',
+      });
+    }
+
+    // Show all available livreurs when waiting
+    if (order?.status === 'en_attente') {
+      nearbyLivreurs.forEach((l) => {
+        markers.push({
+          id: `livreur-${l.id}`,
+          coordinate: l.position,
+          title: `${l.prenom} ${l.nom}`,
+          description: l.vehicule || 'Livreur',
+          icon: vehicleIcons[l.vehicule || ''] || 'car',
+        });
       });
     }
 
@@ -453,6 +527,35 @@ export default function SuiviScreen() {
             <Text style={styles.cancelledText}>
               Commande livrée avec succès !
             </Text>
+            {order.photoPreuve && (
+              <View style={styles.proofPhotoContainer}>
+                <Text style={styles.proofPhotoLabel}>Preuve de livraison</Text>
+                <Image
+                  source={{ uri: order.photoPreuve }}
+                  style={styles.proofPhoto}
+                  resizeMode="cover"
+                />
+                {order.commentairePreuve && (
+                  <Text style={styles.proofComment}>{order.commentairePreuve}</Text>
+                )}
+              </View>
+            )}
+            {!hasRated && !order.noteLivreur && (
+              <TouchableOpacity
+                style={styles.rateButton}
+                onPress={() => setShowRatingModal(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="star" size={18} color="#F1C40F" />
+                <Text style={styles.rateButtonText}>Noter le livreur</Text>
+              </TouchableOpacity>
+            )}
+            {(hasRated || order.noteLivreur) && (
+              <View style={styles.ratedBadge}>
+                <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                <Text style={styles.ratedText}>Livreur note !</Text>
+              </View>
+            )}
             <Button
               title="Passer une nouvelle commande"
               onPress={() => router.replace('/(client)/nouvelle-commande')}
@@ -462,6 +565,55 @@ export default function SuiviScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Rating Modal */}
+      <Modal visible={showRatingModal} transparent animationType="fade">
+        <View style={styles.ratingOverlay}>
+          <View style={styles.ratingModal}>
+            <Ionicons name="star" size={48} color="#F1C40F" />
+            <Text style={styles.ratingTitle}>Noter votre livreur</Text>
+            <Text style={styles.ratingSubtitle}>
+              {livreur ? `${livreur.prenom} ${livreur.nom}` : 'Votre livreur'}
+            </Text>
+            <View style={styles.ratingStarsRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setSelectedRating(star)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={star <= selectedRating ? 'star' : 'star-outline'}
+                    size={40}
+                    color={star <= selectedRating ? '#F1C40F' : Colors.border}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.ratingSubmitButton,
+                selectedRating === 0 && styles.ratingSubmitDisabled,
+              ]}
+              onPress={handleSubmitRating}
+              disabled={selectedRating === 0 || submittingRating}
+              activeOpacity={0.7}
+            >
+              {submittingRating ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.ratingSubmitText}>Valider</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowRatingModal(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.ratingSkipText}>Plus tard</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -703,5 +855,110 @@ const styles = StyleSheet.create({
   },
   errorButton: {
     minWidth: 150,
+  },
+  proofPhotoContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+  },
+  proofPhotoLabel: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+  },
+  proofPhoto: {
+    width: '100%',
+    height: 200,
+    borderRadius: BorderRadius.md,
+  },
+  proofComment: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textLight,
+    marginTop: Spacing.sm,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  rateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F1C40F' + '20',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+  },
+  rateButtonText: {
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.text,
+  },
+  ratedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.md,
+  },
+  ratedText: {
+    fontSize: Typography.sizes.md,
+    color: Colors.success,
+    fontWeight: Typography.weights.medium,
+  },
+  ratingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ratingModal: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    width: '85%',
+    maxWidth: 340,
+  },
+  ratingTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+    marginTop: 12,
+  },
+  ratingSubtitle: {
+    fontSize: 14,
+    color: Colors.textLight,
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  ratingStarsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 24,
+  },
+  ratingSubmitButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    width: '100%',
+    alignItems: 'center',
+  },
+  ratingSubmitDisabled: {
+    backgroundColor: Colors.border,
+  },
+  ratingSubmitText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  ratingSkipText: {
+    color: Colors.textLight,
+    fontSize: 14,
+    marginTop: 14,
   },
 });
